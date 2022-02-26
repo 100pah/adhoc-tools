@@ -46,7 +46,7 @@ static _Unwind_Reason_Code unwindCallback(
     return _URC_NO_REASON;
 }
 
-} // end of namespace
+} // end of anonymous namespace
 
 
 void adhoc_dumpCppBacktrace(const char* tag) {
