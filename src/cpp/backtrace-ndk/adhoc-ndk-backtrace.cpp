@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <iomanip> // For std::setw()
-#include <os-android.h> // Only for __android_log_print
+#include <android/log.h> // Only for __android_log_print
 #ifndef ADHOC_NDK_BACKTRACE_DONT_DEMANGLE
 #include <cxxabi.h> // Only for demangling
 #endif
