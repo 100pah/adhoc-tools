@@ -30,12 +30,12 @@
 /// So we have to use `addr2line` to get line number.
 
 
-#ifndef _ADHOC_CPP_BACKTRACE_
-#define _ADHOC_CPP_BACKTRACE_
+#ifndef _ADHOC_NDK_BACKTRACE_H_
+#define _ADHOC_NDK_BACKTRACE_H_
 
 #ifdef __cplusplus
 extern "C" __attribute__((visibility("default"))) __attribute__((used))
 #endif
 void adhoc_dumpCppBacktrace(const char* tag);
 
-#endif // end of _ADHOC_CPP_BACKTRACE_
+#endif // end of _ADHOC_NDK_BACKTRACE_H_
