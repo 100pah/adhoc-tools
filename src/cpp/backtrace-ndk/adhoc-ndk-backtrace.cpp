@@ -1,6 +1,5 @@
 // There are some precondition for using demangling,
 // see https://stackoverflow.com/a/35585744
-// And it need unstripped so.
 // #define ADHOC_NDK_BACKTRACE_DONT_DEMANGLE 1
 // #define ADHOC_NDK_BACKTRACE_DONT_USE_COLOR 1
 
