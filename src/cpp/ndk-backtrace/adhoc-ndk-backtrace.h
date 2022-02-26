@@ -32,7 +32,7 @@
 #ifndef _ADHOC_NDK_BACKTRACE_H_
 #define _ADHOC_NDK_BACKTRACE_H_
 
-#include "adhoc/common/adhoc-common.h"
+#include "../common/adhoc-common.h"
 
 ADHOC_EXPORT
 void adhoc_dumpCppBacktrace(const char* tag);
