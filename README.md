@@ -1,5 +1,10 @@
 # adhoc-tools
 
+
+## Features
++ `adhoc/ndk-backtrace/adhoc-ndk-backtrace`: Print CPP backtrace.
+
+
 ## Sample config for `CMakeLists.txt`
 
 ```shell
