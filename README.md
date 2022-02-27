@@ -2,7 +2,7 @@
 
 ## Sample config for `CMakeLists.txt`
 
-```
+```shell
 # For example
 
 set(ADHOC_PROJECT_DIR /your/path/to/adhoc-tools)
