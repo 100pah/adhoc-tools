@@ -1,9 +1,11 @@
 # adhoc-tools
 
+<br>
 
 ## Features
 + `adhoc/ndk-backtrace/adhoc-ndk-backtrace`: Print CPP backtrace.
 
+<br>
 
 ## Sample config for `CMakeLists.txt`
 
@@ -36,6 +38,8 @@ add_library(
 )
 ```
 
+<br>
+
 ## Make dummy `assert.h`
 If intent to run it in assertion fail, we need to make a dummy `assert.h`.
 
@@ -50,6 +54,8 @@ define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __ass
 define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __assert(__FILE__, __LINE__, #e)))
 // ...
 ```
+
+<br>
 
 ## Get the output from these tools
 
