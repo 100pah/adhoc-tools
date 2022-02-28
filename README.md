@@ -6,11 +6,14 @@ Some code for learning and adhoc usage.
 
 ## Features
 
-+ `adhoc/ndk-backtrace/adhoc-ndk-backtrace`: Print CPP backtrace.
++ `adhoc/ndk-backtrace`: Print C++ backtrace.
++ `adhoc/ndk-uncaught`: Catch and print uncaught crash and C++ exceptions.
 
 <br>
 
-## Sample config for `CMakeLists.txt`
+## Configuration
+
+### Sample config in `CMakeLists.txt`
 
 ```shell
 # For example
@@ -36,14 +39,12 @@ add_library(
     your_so_name
     SHARED # or others
 
-    # If use backtrace feature:
     ${ADHOC_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-backtrace.cpp
+    ${ADHOC_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-uncaught.cpp
 )
 ```
 
-<br>
-
-## Make dummy `assert.h`
+### Make a dummy `assert.h`
 If intent to run it in assertion fail, we need to make a dummy `assert.h`.
 
 For example, `assert.h` can be copied from: `~/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/assert.h`, which is the original `assert.h` you included from the NDK version you are using. And put the new `assert.h` under a directory like `${ADHOC_PROJECT_DIR}/ndk-mod-include/${NDK_VERSION}`, and pub the directory path to `ADHOC_NDK_MOD_INCLUDE_DIR` in `CMakeLists.txt` above, which enables substitution for the original `assert.h` while header file searching.
@@ -57,6 +58,18 @@ define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __ass
 define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __assert(__FILE__, __LINE__, #e)))
 // ...
 ```
+
+### In Your Code
+```cpp
+#include "adhoc/ndk-uncaught/adhoc-ndk-uncaught.h"
+
+jint JNI_OnLoad(JavaVM* vm, void* reserved) {
+    // ...
+    adhoc_initializeNativeCrashHandler("adhoc");
+    // ...
+}
+```
+
 
 <br>
 

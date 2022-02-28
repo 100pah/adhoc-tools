@@ -1,7 +1,6 @@
 // There are some precondition for using demangling,
 // see https://stackoverflow.com/a/35585744
-// #define ADHOC_NDK_BACKTRACE_DONT_DEMANGLE 1
-// #define ADHOC_NDK_BACKTRACE_DONT_USE_COLOR 1
+// #define _ADHOC_TOOLS_NDK_BACKTRACE_DONT_DEMANGLE_ 1
 
 #include "adhoc-ndk-backtrace.h"
 #include <unwind.h>
@@ -10,19 +9,14 @@
 #include <sstream>
 #include <iomanip> // For std::setw()
 #include <android/log.h> // Only for __android_log_print
-#ifndef ADHOC_NDK_BACKTRACE_DONT_DEMANGLE
+#ifndef _ADHOC_TOOLS_NDK_BACKTRACE_DONT_DEMANGLE_
 #include <cxxabi.h> // Only for demangling
 #endif
 
-namespace {
+#include "../common/adhoc-private.h"
 
-#ifndef ADHOC_NDK_BACKTRACE_DONT_USE_COLOR
-const char* COLOR_RED = "\033[0;31m";
-const char* COLOR_END = "\033[0m";
-#elif
-const char* COLOR_RED = "";
-const char* COLOR_END = "";
-#endif
+
+namespace {
 
 const size_t BUFFER_MAX = 500;
 
@@ -89,7 +83,7 @@ void adhoc_dumpCppBacktrace(const char* tag) {
         }
         std::stringstream symbolOut;
 
-#ifndef ADHOC_NDK_BACKTRACE_DONT_DEMANGLE
+#ifndef _ADHOC_TOOLS_NDK_BACKTRACE_DONT_DEMANGLE_
         int demangleStatus = 0;
         char* demangled = __cxxabiv1::__cxa_demangle(symbol, 0, 0, &demangleStatus);
         // The output demangleStatus:
@@ -99,22 +93,23 @@ void adhoc_dumpCppBacktrace(const char* tag) {
         //    demangle_success = 0,
         // If the symbol is not mangled, demangleStatus can be -2.
         if (NULL != demangled && 0 == demangleStatus) {
-            symbolOut << COLOR_RED << demangled << COLOR_END << "  (original mangled symbol: " << symbol << ")";
+            symbolOut << terminalcolor::red << demangled << terminalcolor::reset <<
+                    "  (original mangled symbol: " << symbol << ")";
         }
         else {
-            symbolOut << COLOR_RED << symbol << COLOR_END;
+            symbolOut << terminalcolor::red << symbol << terminalcolor::reset;
             // __android_log_print(ANDROID_LOG_ERROR, tag, "Demangle failed. status: %d", demangleStatus);
         }
 #elif
-        symbolOut << COLOR_RED << symbol << COLOR_END;
+        symbolOut << terminalcolor::red << symbol << terminalcolor::reset;
 #endif
 
         std::stringstream lineStream;
-        lineStream << COLOR_RED << "    #" << std::setw(2) << index++ << ": " << COLOR_END << addrToBase <<
-                "  " << symbolOut.str().c_str() << " @" << objFileName << "\n";
+        lineStream << terminalcolor::red << "    #" << std::setw(2) << index++ << ": " << terminalcolor::reset
+                << addrToBase << "  " << symbolOut.str().c_str() << " @" << objFileName << "\n";
         __android_log_print(ANDROID_LOG_ERROR, tag, "%s", lineStream.str().c_str());
 
-#ifndef ADHOC_NDK_BACKTRACE_DONT_DEMANGLE
+#ifndef _ADHOC_TOOLS_NDK_BACKTRACE_DONT_DEMANGLE_
         if (NULL != demangled) {
             std::free(demangled);
         }
