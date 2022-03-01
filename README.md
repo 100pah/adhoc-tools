@@ -40,7 +40,7 @@ add_library(
     SHARED # or others
 
     ${ADHOC_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-backtrace.cpp
-    ${ADHOC_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-uncaught.cpp
+    ${ADHOC_SRC_DIR}/adhoc/ndk-uncaught/adhoc-ndk-uncaught.cpp
 )
 ```
 
