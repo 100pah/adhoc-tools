@@ -251,7 +251,7 @@ void adhoc_initializeNativeCrashHandler(const char* tag) {
         return;
     }
 
-    __android_log_print(ANDROID_LOG_ERROR, s_tag, "adhoc_initializeNativeCrashHandler initialized.");
+    __android_log_print(ANDROID_LOG_INFO, s_tag, "adhoc_initializeNativeCrashHandler initialized.");
 }
 
 bool adhoc_deinitializeNativeCrashHandler() {
