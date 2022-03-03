@@ -11,7 +11,7 @@ Some code for learning and adhoc usage.
 
 <br>
 
-## Install (Manually)
+## Install (manually)
 
 ### Sample config in `CMakeLists.txt`
 
@@ -73,7 +73,7 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
 <br>
 
-## Get the Output from These Tools
+## Get the output from this tool
 
 Use adb logcat, for example:
 ```shell
@@ -95,7 +95,7 @@ nativeCrashSignalHandler enter
 
 You may find the meaning of the signal number and signal code from `signal.h`. For example, `/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/signal.h`.
 
-You can get the line number by `addr2line` if you need. For example:
+You can get the source file line number by `addr2line` if you need. For example:
 ```shell
 # Note: find the addr2line from the ndk exactly that you used.
 ~/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-addr2line  \
