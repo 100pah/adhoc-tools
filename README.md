@@ -11,7 +11,7 @@ Some code for learning and adhoc usage.
 
 <br>
 
-## Configuration
+## Install (Manually)
 
 ### Sample config in `CMakeLists.txt`
 
@@ -73,9 +73,34 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
 <br>
 
-## Get the output from these tools
+## Get the Output from These Tools
 
 Use adb logcat, for example:
 ```shell
 adb logcat "adhoc:* *:F"
+```
+
+If `assert(false)` or crash happen, you may receive the log like (the log content below is fake):
+```log
+nativeCrashSignalHandler enter
+03-03 19:51:16.468  8123 12345 E adhoc  : ============ C++ StackTrace End ============
+03-03 19:51:16.468  8123 12345 E adhoc  :     # 0: 0x123456  adhoc_dumpCppBacktrace @/data/app/com.xxx.yyy-nABCDEabcde123_xyz==/lib/arm/libxxyyzz.so
+03-03 19:51:16.469  8123 12345 E adhoc  :     # 1: 0x654321  xxx::Xxxx::XxxXXx(_jobject*) const  (original mangled symbol: _ZN12345678ABCDEF_jobject) @/xxx/com.android.runtime/lib/libxxx.so
+03-03 19:51:16.469  8123 12345 E adhoc  :     # 2: 0x987654  _JNIEnv::CallVoidMethod(_jobject*, _jmethodID*, ...)  (original mangled symbol: _ZNxxxxxxxxx_jobject_jmethod) @/data/app/com.xxx.yyy-nABCDEabcde123_xyz==/lib/arm/libxxyyzz.so
+03-03 19:51:16.469  8123 12345 E adhoc  :     # 3: 0x456789  MySomeClass::createSomething(_JNIEnv*, _jobject*)  (original mangled symbol: _ZNxxxxxxxxx_JNIEnv_jobject) @/data/app/com.xxx.yyy-nABCDEabcde123_xyz==/lib/arm/libxxyyzz.so
+03-03 19:51:16.470  8123 12345 E adhoc  : ============ C++ StackTrace End ============
+03-03 19:51:16.470  8123 12345 E adhoc  : Terminating with a C crash.
+03-03 19:51:16.470  8123 12345 E adhoc  : Signal Number: 4 (illegal instruction) Signal Code: 1
+```
+
+You may find the meaning of the signal number and signal code from `signal.h`. For example, `/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/signal.h`.
+
+You can get the line number by `addr2line` if you need. For example:
+```shell
+# Note: find the addr2line from the ndk exactly that you used.
+~/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android-addr2line  \
+-C -f -e \
+~/my-proj/intermediates/cmake/debug/obj/armeabi-v7a/libxxyyzz.so \
+0x456789
+# 0x456789 is the address get from the log above.
 ```
