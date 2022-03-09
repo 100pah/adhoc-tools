@@ -101,7 +101,7 @@ Use adb logcat, for example:
 adb logcat "adhoc:* *:F"
 ```
 
-### Use adhoc-ndk-uncaught
+### If use adhoc-ndk-uncaught
 
 If `assert(false)` or crash happen, you may receive the log like (the log content below is fake):
 ```log
@@ -129,7 +129,7 @@ You can get the source file line number by `addr2line` if you need. For example:
 ```
 
 
-### Use adhoc-perf
+### If use adhoc-perf
 
 You can get the timer output like:
 ```log
