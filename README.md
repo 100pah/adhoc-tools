@@ -39,8 +39,12 @@ add_library(
     your_so_name
     SHARED # or others
 
+    # If use adhoc-ndk-uncaught & adhoc-ndk-backtrace
     ${ADHOC_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-backtrace.cpp
+    # If use adhoc-ndk-backtrace
     ${ADHOC_SRC_DIR}/adhoc/ndk-uncaught/adhoc-ndk-uncaught.cpp
+    # If use adhoc-perf
+    ${ADHOC_SRC_DIR}/adhoc/perf/adhoc-perf.cpp
 )
 ```
 
@@ -60,15 +64,32 @@ define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __ass
 ```
 
 ### In Your Code
-```cpp
-#include "adhoc/ndk-uncaught/adhoc-ndk-uncaught.h"
++ If use adhoc-ndk-uncaught
+    ```cpp
+    #include "adhoc/ndk-uncaught/adhoc-ndk-uncaught.h"
 
-jint JNI_OnLoad(JavaVM* vm, void* reserved) {
-    // ...
-    adhoc_initializeNativeCrashHandler("adhoc");
-    // ...
-}
-```
+    jint JNI_OnLoad(JavaVM* vm, void* reserved) {
+        // ...
+        adhoc_initializeNativeCrashHandler("adhoc");
+        // ...
+    }
+    ```
++ If use adhoc-perf
+    + Config `adhoc/perf/config.h` first to add your timer items.
+    ```cpp
+    #include "adhoc/perf/adhoc-perf.h"
+
+    void someFn() {
+        adhocperf::someTimeItemAAA.start();
+        for (int i = 0; i < 100; i++) {
+            adhocperf::someTimeItemBBB.start();
+            int b = 5;
+            adhocperf::someTimeItemBBB.end();
+        }
+        adhocperf::someTimeItemAAA.end();
+        adhocperf::summarizeAndPrintPerf();
+    }
+    ```
 
 
 <br>
@@ -79,6 +100,8 @@ Use adb logcat, for example:
 ```shell
 adb logcat "adhoc:* *:F"
 ```
+
+### Use adhoc-ndk-uncaught
 
 If `assert(false)` or crash happen, you may receive the log like (the log content below is fake):
 ```log
@@ -103,4 +126,12 @@ You can get the source file line number by `addr2line` if you need. For example:
 ~/my-proj/intermediates/cmake/debug/obj/armeabi-v7a/libxxyyzz.so \
 0x456789
 # 0x456789 is the address get from the log above.
+```
+
+
+### Use adhoc-perf
+
+You can get the timer output like:
+```log
+adhoc  someTimeItemAAA: {count: 1, average: 0.606000 ms}, someTimeItemBBB: {count: 1, average: 0.008000 ms}, someTimeItemCCC: {count: 1000, average: 0.000038 ms},
 ```
