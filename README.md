@@ -15,43 +15,46 @@ Some code for learning and adhoc usage.
 
 ### Sample config in `CMakeLists.txt`
 
+(You can use the template in `resource/adhoc-tools.cmake`)
+
 ```shell
 # For example
 
-set(ADHOC_PROJECT_DIR /your/path/to/adhoc-tools)
-set(ADHOC_SRC_DIR ${ADHOC_PROJECT_DIR}/src/cpp)
+set(ADHOC_TOOLS_PROJECT_DIR /your/path/to/adhoc-tools)
+set(ADHOC_TOOLS_SRC_DIR ${ADHOC_TOOLS_PROJECT_DIR}/src/cpp)
 
 # If intending to print backtrace in assertion fail,
 # We can use this prepared `assert.h` for NDK version 20.1.5948944,
 # or make your own dummy `assert.h` for other NDK version.
 # See "Make dummy `assert.h`" below for details.
-set(ADHOC_NDK_MOD_INCLUDE_DIR ${ADHOC_PROJECT_DIR}/ndk-mod-include/20.1.5948944)
+set(ADHOC_TOOLS_NDK_MOD_INCLUDE_DIR ${ADHOC_TOOLS_PROJECT_DIR}/ndk-mod-include/20.1.5948944)
 
 # Or use `target_include_directories`
 include_directories(
-    ${ADHOC_NDK_MOD_INCLUDE_DIR}
-    ${ADHOC_SRC_DIR}
+    ${ADHOC_TOOLS_NDK_MOD_INCLUDE_DIR}
+    ${ADHOC_TOOLS_SRC_DIR}
     # ...
 )
 
-# Or use `add_executable`
+# Or use `add_executable`.
+# Or use `target_sources` to add source to the existing targets.
 add_library(
     your_so_name
     SHARED # or others
 
     # If use adhoc-ndk-uncaught & adhoc-ndk-backtrace
-    ${ADHOC_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-backtrace.cpp
+    ${ADHOC_TOOLS_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-backtrace.cpp
     # If use adhoc-ndk-backtrace
-    ${ADHOC_SRC_DIR}/adhoc/ndk-uncaught/adhoc-ndk-uncaught.cpp
+    ${ADHOC_TOOLS_SRC_DIR}/adhoc/ndk-uncaught/adhoc-ndk-uncaught.cpp
     # If use adhoc-perf
-    ${ADHOC_SRC_DIR}/adhoc/perf/adhoc-perf.cpp
+    ${ADHOC_TOOLS_SRC_DIR}/adhoc/perf/adhoc-perf.cpp
 )
 ```
 
 ### Make a dummy `assert.h`
 If intent to run it in assertion fail, we need to make a dummy `assert.h`.
 
-For example, `assert.h` can be copied from: `~/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/assert.h`, which is the original `assert.h` you included from the NDK version you are using. And put the new `assert.h` under a directory like `${ADHOC_PROJECT_DIR}/ndk-mod-include/${NDK_VERSION}`, and pub the directory path to `ADHOC_NDK_MOD_INCLUDE_DIR` in `CMakeLists.txt` above, which enables substitution for the original `assert.h` while header file searching.
+For example, `assert.h` can be copied from: `~/Library/Android/sdk/ndk/20.1.5948944/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/assert.h`, which is the original `assert.h` you included from the NDK version you are using. And put the new `assert.h` under a directory like `${ADHOC_TOOLS_PROJECT_DIR}/ndk-mod-include/${NDK_VERSION}`, and pub the directory path to `ADHOC_TOOLS_NDK_MOD_INCLUDE_DIR` in `CMakeLists.txt` above, which enables substitution for the original `assert.h` while header file searching.
 
 And then modify the new `assert.h`:
 ```cpp
