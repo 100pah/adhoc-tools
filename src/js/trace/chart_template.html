@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <!-- <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.2/dist/echarts.min.js"></script> -->
+    </head>
+    <body>
+        <style>
+            html, body {
+                padding: 0;
+                margin: 0;
+            }
+            #main0 {
+                height: 800px;
+            }
+        </style>
+        <script>
+        /*[_[_[ECHARTS_CONTENT]_]_]*/
+        </script>
+
+
+        <div id="main0"></div>
+
+
+        <script>
+            var RAW_DATA =
+                /*[_[_[RESULT_DATA]_]_]*/
+                // [
+                //     [ "tA", "terser", "1651079393537", "1651079401504", "/output/app.js" ],
+                //     [ "tF", "terser", "1651079401525", "1651079401537", "/output/pages/index/index.swan.js" ],
+                //     [ "tD", "terser2", "1651079401538", "1651079401548", "/output/allImportedCssContent.js" ],
+                //     [ "tA", "terser", "1651079401549", "1651079401555", "/output/allCusomComponents.swan.js" ],
+                //     [ "tD", "terser", "1651079401556", "1651079401561", "/output/allRegisteredSJS.js" ],
+                //     [ "tB", "terser1", "1651079401562", "1651079401591", "/output/swan-execute.js" ],
+                //     [ "tB", "terser1", "1651079428452", "1651079436161", "/output/app.js" ],
+                //     [ "tJ", "terser1", "1651079436179", "1651079436192", "/output/pages/index/index.swan.js" ],
+                //     [ "tC", "terser1", "1651079436193", "1651079436207", "/output/allImportedCssContent.js" ],
+                //     [ "tD", "terser", "1651079401556", "1651079401561", "/output/allRegisteredSJS.js" ],
+                //     [ "tB", "terser1", "1651079401562", "1651079401591", "/output/swan-execute.js" ],
+                //     [ "tG", "terser1", "1651079428452", "1651079436161", "/output/app.js" ],
+                //     [ "tC", "terser1", "1651079436179", "1651079436192", "/output/pages/index/index.swan.js" ],
+                //     [ "tH", "terser1", "1651079436193", "1651079436207", "/output/allImportedCssContent.js" ],
+                //     [ "tI", "terser", "1651079401556", "1651079401561", "/output/allRegisteredSJS.js" ],
+                //     [ "tK", "terser1", "1651079401562", "1651079401591", "/output/swan-execute.js" ],
+                //     [ "tB", "terser1", "1651079428452", "1651079436161", "/output/app.js" ],
+                //     [ "tC", "terser1", "1651079436179", "1651079436192", "/output/pages/index/index.swan.js" ],
+                //     [ "tM", "terser1", "1651079436193", "1651079436207", "/output/allImportedCssContent.js" ],
+                //     [ "tB", "terser", "1651079436207", "1651079436213", "/output/allCusomComponents.swan.js" ],
+                //     [ "tE", "terser", "1651079436214", "1651079436222", "/output/allRegisteredSJS.js" ],
+                //     [ "tA", "terser", "1651079436223", "1651079436249", "/output/swan-execute.js" ]
+                // ]
+            ;
+        </script>
+
+
+        <script>
+            var FIELD_INDEX = {
+                threadId: 0,
+                tagName: 1,
+                begin: 2,
+                end: 3,
+                extMsg: 4,
+                threadNumber: 5,
+                color: 6,
+                duration: 7,
+                // If there are multiple tags overlap with each other in the same thread,
+                // Use `offsetInThread` make them not overlop.
+                offsetInThread: 8,
+            };
+            var DIMENSIONS = [
+                'threadId',
+                'tagName',
+                'begin',
+                'end',
+                'extMsg',
+                'threadNumber',
+                'color',
+                'duration',
+                'offsetInThread'
+            ];
+            var COLORS = [
+                '#37A2DA', '#32C5E9', '#67E0E3', '#9FE6B8', '#FFDB5C', '#ff9f7f',
+                '#fb7293', '#E062AE', '#E690D1', '#e7bcf3', '#9d96f5', '#8378EA', '#96BFFF'
+            ];
+            var MAX_TAGS_IN_ONE_THREAD = 3;
+
+            function makeData(rawData) {
+                var data = [];
+                var minTimestamp = Infinity;
+                var maxTimestamp = 0;
+                var minThreadNumber = Infinity;
+                var maxThreadNumber = 0;
+                var threadIdToNumberMap = {};
+                var numberToThreadIdMap = [];
+                var overlapRecordInThread = {};
+
+                // Map tag to color;
+                var tagToColorMap = {};
+                var colorIndex = 0;
+
+                for (var i = 0; i < rawData.length; i++) {
+                    var item = rawData[i].slice();
+                    var tag = item[FIELD_INDEX.tagName];
+                    var threadId = item[FIELD_INDEX.threadId];
+
+                    var color = tagToColorMap[tag] || (tagToColorMap[tag] = COLORS[colorIndex++]);
+                    item[FIELD_INDEX.color] = color;
+                    item[FIELD_INDEX.begin] = +item[FIELD_INDEX.begin];
+                    item[FIELD_INDEX.end] = +item[FIELD_INDEX.end];
+
+                    item[FIELD_INDEX.duration] = item[FIELD_INDEX.end] - item[FIELD_INDEX.begin];
+
+                    data.push(item);
+
+                    minTimestamp = Math.min(minTimestamp, item[FIELD_INDEX.begin]);
+                    maxTimestamp = Math.max(maxTimestamp, item[FIELD_INDEX.end]);
+                }
+
+                // Make avoid overlap
+                // key: threadId, value: {overlapCount, threadNumberTaken, timeTaken}.
+                data.sort(function (item1, item2) {
+                    return item1[FIELD_INDEX.begin] - item2[FIELD_INDEX.begin];
+                });
+                for (var i = 0; i < data.length; i++) {
+                    var item = data[i];
+                    var threadId = item[FIELD_INDEX.threadId];
+                    var record = overlapRecordInThread[threadId]
+                        || (overlapRecordInThread[threadId] = {overlapCount: 1, timeTaken: 0});
+                    if (item[FIELD_INDEX.begin] < record.timeTaken) {
+                        record.overlapCount++;
+                    }
+                    item[FIELD_INDEX.offsetInThread] = record.overlapCount - 1;
+                    record.timeTaken = Math.max(record.timeTaken, item[FIELD_INDEX.end]);
+                }
+
+                // Calculate thread number for y axis.
+                var threadNumberBase = 0;
+                for (var i = 0; i < data.length; i++) {
+                    var item = data[i];
+                    var threadId = item[FIELD_INDEX.threadId];
+
+                    var threadNumber = threadIdToNumberMap[threadId];
+                    if (threadNumber == null) {
+                        threadNumber = threadIdToNumberMap[threadId] = threadNumberBase;
+                        numberToThreadIdMap[threadNumber] = threadId;
+                        // Max 2 tags if overlap in one thread, otherwise the thread
+                        // take more than one y axis number.
+                        var overlapRecord = overlapRecordInThread[threadId];
+                        var threadNumberStep = Math.ceil(overlapRecord.overlapCount / MAX_TAGS_IN_ONE_THREAD);
+                        threadNumberBase += threadNumberStep;
+                        overlapRecord.threadNumberTaken = threadNumberStep;
+                    }
+                    item[FIELD_INDEX.threadNumber] = threadNumber;
+                    minThreadNumber = Math.min(minThreadNumber, threadNumber);
+                    maxThreadNumber = Math.max(maxThreadNumber, threadNumber);
+                }
+
+                return {
+                    data,
+                    minTimestamp,
+                    maxTimestamp,
+                    minThreadNumber,
+                    maxThreadNumber,
+                    threadIdToNumberMap,
+                    numberToThreadIdMap,
+                    overlapRecordInThread
+                };
+            }
+
+            function makeECOption(dataInfo) {
+
+                function renderItem(params, api) {
+                    var threadNumber = api.value(FIELD_INDEX.threadNumber);
+                    var beginTimestamp = api.value(FIELD_INDEX.begin);
+                    var endTimestamp = api.value(FIELD_INDEX.end);
+                    var begin = api.coord([beginTimestamp, threadNumber]);
+                    var end = api.coord([endTimestamp, threadNumber]);
+
+                    var maxYSpan = Math.max(1, api.size([0, 1])[1]);
+                    var threadId = api.value(FIELD_INDEX.threadId);
+                    var offsetInThread = api.value(FIELD_INDEX.offsetInThread);
+                    var overlapRecord = dataInfo.overlapRecordInThread[threadId];
+                    var height;
+                    var yVal
+                    if (overlapRecord.overlapCount > 1) {
+                        height = Math.max(
+                            1,
+                            (maxYSpan * overlapRecord.threadNumberTaken * 0.8)
+                                / overlapRecord.overlapCount
+                        );
+                        console.log(offsetInThread * height);
+                        yVal = begin[1] + (maxYSpan * 0.8) / 2 - offsetInThread * height
+                    }
+                    else {
+                        height = maxYSpan * 0.6;
+                        yVal = begin[1] - height / 2;
+                    }
+
+                    var xVal = begin[0];
+
+                    var color = api.value(FIELD_INDEX.color);
+                    // Make sure a line visiable event if zooming.
+                    var width = Math.max(1, end[0] - begin[0]);
+
+                    var rectShape = echarts.graphic.clipRectByRect(
+                        {
+                            x: xVal,
+                            y: yVal,
+                            width: width,
+                            height: height
+                        },
+                        {
+                            x: params.coordSys.x,
+                            y: params.coordSys.y,
+                            width: params.coordSys.width,
+                            height: params.coordSys.height
+                        }
+                    );
+                    var tag = api.value(FIELD_INDEX.tagName);
+                    var labelText = width > 80 ? tag : '';
+                    if (rectShape) {
+                        return {
+                            type: 'group',
+                            children: [{
+                                type: 'rect',
+                                transition: ['shape'],
+                                shape: rectShape,
+                                style: {
+                                    fill: color,
+                                    stroke: 'rgba(0,0,0,0.7)',
+                                    lineWidth: 1,
+                                    opacity: 0.7
+                                },
+                                textContent: {
+                                    type: 'text',
+                                    style: {
+                                        text: labelText
+                                    }
+                                },
+                                textConfig: {
+                                    position: 'inside'
+                                }
+                            }]
+                        };
+                    }
+                }
+
+                var option = {
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: {
+                            label: {
+                                show: true
+                            }
+                        }
+                        // formatter: function (params) {
+                        //     return params.marker + params.name + ': ' + params.value[3] + ' ms';
+                        // }
+                    },
+                    title: {
+                        text: 'Profile Timeline',
+                        left: 'center'
+                    },
+                    dataZoom: [{
+                    //     type: 'slider',
+                    //     filterMode: 'weakFilter',
+                    //     showDataShadow: false,
+                    //     bottom: 10,
+                    //     // labelFormatter: ''
+                    // }, {
+                    //     type: 'inside',
+                    //     filterMode: 'weakFilter'
+                        type: 'slider',
+                        xAxisIndex: 0,
+                        filterMode: 'none',
+                        height: 35,
+                        top: 50,
+                        // start: 0,
+                        // end: 26,
+                        handleIcon: 'path://M10.7,11.9H9.3c-4.9,0.3-8.8,4.4-8.8,9.4c0,5,3.9,9.1,8.8,9.4h1.3c4.9-0.3,8.8-4.4,8.8-9.4C19.5,16.3,15.6,12.2,10.7,11.9z M13.3,24.4H6.7V23h6.6V24.4z M13.3,19.6H6.7v-1.4h6.6V19.6z',
+                        handleSize: '60%',
+                        showDetail: false,
+                        showDataShadow: false
+                    }, {
+                        type: 'inside',
+                        id: 'insideX',
+                        xAxisIndex: 0,
+                        // filterMode: 'weakFilter',
+                        filterMode: 'none',
+                        // start: 0,
+                        // end: 26,
+                        // zoomOnMouseWheel: false,
+                        // moveOnMouseMove: true
+                    }, {
+                        type: 'slider',
+                        yAxisIndex: 0,
+                        // zoomLock: true,
+                        filterMode: 'none',
+                        width: 30,
+                        right: 20,
+                        // top: 70,
+                        // bottom: 20,
+                        // start: 95,
+                        // end: 100,
+                        handleIcon: 'path://M10.7,11.9H9.3c-4.9,0.3-8.8,4.4-8.8,9.4c0,5,3.9,9.1,8.8,9.4h1.3c4.9-0.3,8.8-4.4,8.8-9.4C19.5,16.3,15.6,12.2,10.7,11.9z M13.3,24.4H6.7V23h6.6V24.4z M13.3,19.6H6.7v-1.4h6.6V19.6z',
+                        handleSize: '60%',
+                        showDetail: false
+                    }, {
+                        type: 'inside',
+                        id: 'insideY',
+                        filterMode: 'none',
+                        yAxisIndex: 0,
+                        // start: 95,
+                        // end: 100,
+                        zoomOnMouseWheel: false,
+                        moveOnMouseMove: true,
+                        moveOnMouseWheel: false
+                    }],
+                    grid: {
+                        containLabel: true,
+                        top: 130,
+                        bottom: 30,
+                        left: 50,
+                        right: 90
+                    },
+                    xAxis: {
+                        min: dataInfo.minTimestamp - 1000,
+                        max: dataInfo.maxTimestamp + 1000,
+                        scale: true,
+                        axisLabel: {
+                            formatter: function (val) {
+                                return val;
+                            }
+                        },
+                        axisLine: {
+                            show: false
+                        },
+                        axisTick: {
+                            show: false
+                        }
+                    },
+                    yAxis: {
+                        min: dataInfo.minThreadNumber - 1,
+                        max: dataInfo.maxThreadNumber + 1,
+                        interval: 1,
+                        axisLabel: {
+                            formatter: function (val) {
+                                return dataInfo.numberToThreadIdMap[val] || '';
+                            }
+                        },
+                        axisTick: {
+                            show: false
+                        },
+                        scale: true
+                    },
+                    series: [{
+                        type: 'custom',
+                        tooltip: {
+                            trigger: 'item'
+                        },
+                        renderItem: renderItem,
+                        itemStyle: {
+                            opacity: 0.8
+                        },
+                        encode: {
+                            x: [FIELD_INDEX.begin, FIELD_INDEX.end],
+                            y: FIELD_INDEX.threadNumber,
+                            tooltip: [
+                                FIELD_INDEX.threadId,
+                                FIELD_INDEX.tagName,
+                                FIELD_INDEX.duration,
+                                FIELD_INDEX.begin,
+                                FIELD_INDEX.end,
+                                FIELD_INDEX.extMsg
+                            ]
+                        },
+                        dimensions: DIMENSIONS,
+                        data: dataInfo.data
+                    }]
+                };
+
+                return option;
+            }
+
+            function run() {
+                var dataInfo = makeData(RAW_DATA);
+                var option = makeECOption(dataInfo);
+
+                var dom = document.getElementById('main0');
+                var chart = echarts.init(dom);
+                chart.setOption(option);
+            }
+
+            run();
+
+        </script>
+    </body>
+</html>

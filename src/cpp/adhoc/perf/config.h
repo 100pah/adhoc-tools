@@ -7,8 +7,8 @@
 /// ```
 /// ----------------------------
 #define _ADHOC_TOOLS_PERF_TIMER_ITEMS_(M) \
-    M(someTimeItemAAA) \
-    M(someTimeItemBBB) \
+    M(quickjsTimer) \
+    M(v8Timer) \
     M(someTimeItemCCC) \
 
 /// Modify the log tag here if needed.
@@ -25,8 +25,6 @@
 ///     __android_log_print(ANDROID_LOG_INFO, "adhoc", __VA_ARGS__);
 /// ```
 /// Can also modify the log tag here if needed ("adhoc" by default).
-#define _ADHOC_TOOLS_PERF_LOG_INCLUDE_ <stdio.h>
+#define _ADHOC_TOOLS_PERF_LOG_INCLUDE_ <android/log.h>
 #define _ADHOC_TOOLS_PERF_LOG_(...) \
-    printf("adhoc  "); \
-    printf(__VA_ARGS__); \
-    printf("\n");
+   __android_log_print(ANDROID_LOG_INFO, "QJS", __VA_ARGS__)
