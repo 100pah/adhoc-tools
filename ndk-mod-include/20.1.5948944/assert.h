@@ -57,8 +57,11 @@
 # define assert(e) __assert_no_op
 #else
 # if defined(__cplusplus) || __STDC_VERSION__ >= 199901L
-// #  define assert(e) ((e) ? __assert_no_op : __assert2(__FILE__, __LINE__, __PRETTY_FUNCTION__, #e))
+#ifdef USE_ADHOC_NDK_UNCAUGHT
 #  define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __assert2(__FILE__, __LINE__, __PRETTY_FUNCTION__, #e)))
+#else
+#  define assert(e) ((e) ? __assert_no_op : __assert2(__FILE__, __LINE__, __PRETTY_FUNCTION__, #e))
+#endif // USE_ADHOC_NDK_UNCAUGHT
 # else
 /**
  * assert() aborts the program after logging an error message, if the
@@ -66,8 +69,11 @@
  *
  * On Android, the error goes to both stderr and logcat.
  */
-// #  define assert(e) ((e) ? __assert_no_op : __assert(__FILE__, __LINE__, #e))
+#ifdef USE_ADHOC_NDK_UNCAUGHT
 #  define assert(e) ((e) ? __assert_no_op : adhoc_dumpCppBacktrace("adhoc"), __assert(__FILE__, __LINE__, #e))
+#else
+#  define assert(e) ((e) ? __assert_no_op : __assert(__FILE__, __LINE__, #e))
+#endif // USE_ADHOC_NDK_UNCAUGHT
 # endif
 #endif
 

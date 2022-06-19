@@ -15,40 +15,71 @@ Some code for learning and adhoc usage.
 
 ### Sample config in `CMakeLists.txt`
 
-(You can use the template in `resource/adhoc-tools.cmake`)
+#### You can use the template in `resource/adhoc-tools.cmake`
 
+#### Or manually set like that
+
+Firstly we can set in `CMakeLists.txt`:
 ```shell
-# For example
+set(MARIO_ENABLE_V8_TRACING 1)
+```
+Or in build.gradle (only for Android)
+```groovy
+android {
+    defaultConfig {
+        externalNativeBuild {
+            cmake {
+                arguments "-DMARIO_ENABLE_V8_TRACING=1",
+            }
+        }
+    }
+}
+```
 
-set(ADHOC_TOOLS_PROJECT_DIR /your/path/to/adhoc-tools)
-set(ADHOC_TOOLS_SRC_DIR ${ADHOC_TOOLS_PROJECT_DIR}/src/cpp)
+Then in `CMakeLists.txt`
+```shell
+add_definitions("-DMARIO_ENABLE_V8_TRACING=${MARIO_ENABLE_V8_TRACING}")
 
-# If intending to print backtrace in assertion fail,
-# We can use this prepared `assert.h` for NDK version 20.1.5948944,
-# or make your own dummy `assert.h` for other NDK version.
-# See "Make dummy `assert.h`" below for details.
-set(ADHOC_TOOLS_NDK_MOD_INCLUDE_DIR ${ADHOC_TOOLS_PROJECT_DIR}/ndk-mod-include/20.1.5948944)
+if((DEFINED USE_ADHOC_NDK_UNCAUGHT) OR (DEFINED USE_ADHOC_PERF))
+    set(ADHOC_TOOLS_PROJECT_DIR /your/path/to/adhoc-tools)
+    set(ADHOC_TOOLS_SRC_DIR ${ADHOC_TOOLS_PROJECT_DIR}/src/cpp)
 
-# Or use `target_include_directories`
-include_directories(
-    ${ADHOC_TOOLS_NDK_MOD_INCLUDE_DIR}
-    ${ADHOC_TOOLS_SRC_DIR}
-    # ...
-)
+    # If intending to print backtrace in assertion fail,
+    # We can use this prepared `assert.h` for NDK version 20.1.5948944,
+    # or make your own dummy `assert.h` for other NDK version.
+    # See "Make dummy `assert.h`" below for details.
+    set(ADHOC_TOOLS_NDK_MOD_INCLUDE_DIR ${ADHOC_TOOLS_PROJECT_DIR}/ndk-mod-include/20.1.5948944)
 
-# Or use `add_executable`.
-# Or use `target_sources` to add source to the existing targets.
-add_library(
-    your_so_name
-    SHARED # or others
+    # Or use `target_include_directories`
+    include_directories(
+        ${ADHOC_TOOLS_NDK_MOD_INCLUDE_DIR}
+        ${ADHOC_TOOLS_SRC_DIR}
+        # ...
+    )
+endif()
 
-    # If use adhoc-ndk-uncaught & adhoc-ndk-backtrace
-    ${ADHOC_TOOLS_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-backtrace.cpp
-    # If use adhoc-ndk-backtrace
-    ${ADHOC_TOOLS_SRC_DIR}/adhoc/ndk-uncaught/adhoc-ndk-uncaught.cpp
-    # If use adhoc-perf
-    ${ADHOC_TOOLS_SRC_DIR}/adhoc/perf/adhoc-perf.cpp
-)
+if((DEFINED USE_ADHOC_NDK_UNCAUGHT))
+    # Or use `add_executable`.
+    # Or use `target_sources` to add source to the existing targets.
+    add_library(
+        your_so_name
+        SHARED # or others
+        # If use adhoc-ndk-uncaught & adhoc-ndk-backtrace
+        ${ADHOC_TOOLS_SRC_DIR}/adhoc/ndk-backtrace/adhoc-ndk-backtrace.cpp
+        # If use adhoc-ndk-backtrace
+        ${ADHOC_TOOLS_SRC_DIR}/adhoc/ndk-uncaught/adhoc-ndk-uncaught.cpp
+    )
+endif()
+
+if((DEFINED USE_ADHOC_PERF))
+    # Or use `add_executable`.
+    # Or use `target_sources` to add source to the existing targets.
+    add_library(
+        your_so_name
+        SHARED # or others
+        ${ADHOC_TOOLS_SRC_DIR}/adhoc/perf/adhoc-perf.cpp
+    )
+endif()
 ```
 
 ### Make a dummy `assert.h`
@@ -58,22 +89,36 @@ For example, `assert.h` can be copied from: `~/Library/Android/sdk/ndk/20.1.5948
 
 And then modify the new `assert.h`:
 ```cpp
+#ifdef USE_ADHOC_NDK_UNCAUGHT
 #include "adhoc/ndk-backtrace/adhoc-ndk-backtrace.h"
+#endif // USE_ADHOC_NDK_UNCAUGHT
 // ...
-define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __assert2(__FILE__, __LINE__, __PRETTY_FUNCTION__, #e)))
+#ifdef USE_ADHOC_NDK_UNCAUGHT
+#  define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __assert2(__FILE__, __LINE__, __PRETTY_FUNCTION__, #e)))
+#else
+#  define assert(e) ((e) ? __assert_no_op : __assert2(__FILE__, __LINE__, __PRETTY_FUNCTION__, #e))
+#endif // USE_ADHOC_NDK_UNCAUGHT
 // ...
+#ifdef USE_ADHOC_NDK_UNCAUGHT
 define assert(e) ((e) ? __assert_no_op : (adhoc_dumpCppBacktrace("adhoc"), __assert(__FILE__, __LINE__, #e)))
+#else
+#  define assert(e) ((e) ? __assert_no_op : __assert(__FILE__, __LINE__, #e))
+#endif // USE_ADHOC_NDK_UNCAUGHT
 // ...
 ```
 
 ### In Your Code
 + If use adhoc-ndk-uncaught
     ```cpp
+    #ifdef USE_ADHOC_NDK_UNCAUGHT
     #include "adhoc/ndk-uncaught/adhoc-ndk-uncaught.h"
+    #endif // USE_ADHOC_NDK_UNCAUGHT
 
     jint JNI_OnLoad(JavaVM* vm, void* reserved) {
         // ...
+    #ifdef USE_ADHOC_NDK_UNCAUGHT
         adhoc_initializeNativeCrashHandler("adhoc");
+    #endif // USE_ADHOC_NDK_UNCAUGHT
         // ...
     }
     ```
