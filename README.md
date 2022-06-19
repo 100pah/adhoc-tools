@@ -21,7 +21,8 @@ Some code for learning and adhoc usage.
 
 Firstly we can set in `CMakeLists.txt`:
 ```shell
-set(MARIO_ENABLE_V8_TRACING 1)
+set(USE_ADHOC_NDK_UNCAUGHT 1)
+# set(USE_ADHOC_PERF 1)
 ```
 Or in build.gradle (only for Android)
 ```groovy
@@ -29,7 +30,8 @@ android {
     defaultConfig {
         externalNativeBuild {
             cmake {
-                arguments "-DMARIO_ENABLE_V8_TRACING=1",
+                arguments "-DUSE_ADHOC_NDK_UNCAUGHT=1",
+                        // "-DUSE_ADHOC_PERF=1"
             }
         }
     }
@@ -38,9 +40,11 @@ android {
 
 Then in `CMakeLists.txt`
 ```shell
-add_definitions("-DMARIO_ENABLE_V8_TRACING=${MARIO_ENABLE_V8_TRACING}")
 
-if((DEFINED USE_ADHOC_NDK_UNCAUGHT) OR (DEFINED USE_ADHOC_PERF))
+if(
+    (DEFINED USE_ADHOC_NDK_UNCAUGHT)
+    OR (DEFINED USE_ADHOC_PERF)
+)
     set(ADHOC_TOOLS_PROJECT_DIR /your/path/to/adhoc-tools)
     set(ADHOC_TOOLS_SRC_DIR ${ADHOC_TOOLS_PROJECT_DIR}/src/cpp)
 
@@ -59,8 +63,10 @@ if((DEFINED USE_ADHOC_NDK_UNCAUGHT) OR (DEFINED USE_ADHOC_PERF))
 endif()
 
 if((DEFINED USE_ADHOC_NDK_UNCAUGHT))
-    # Or use `add_executable`.
-    # Or use `target_sources` to add source to the existing targets.
+    target_compile_definitions(your_so_name PUBLIC "-DUSE_ADHOC_NDK_UNCAUGHT=${USE_ADHOC_NDK_UNCAUGHT}")
+    # Or use:
+    # add_definitions("-DUSE_ADHOC_NDK_UNCAUGHT=${USE_ADHOC_NDK_UNCAUGHT}")
+
     add_library(
         your_so_name
         SHARED # or others
@@ -69,16 +75,22 @@ if((DEFINED USE_ADHOC_NDK_UNCAUGHT))
         # If use adhoc-ndk-backtrace
         ${ADHOC_TOOLS_SRC_DIR}/adhoc/ndk-uncaught/adhoc-ndk-uncaught.cpp
     )
+    # Or use `add_executable`.
+    # Or use `target_sources` to add source to the existing targets.
 endif()
 
 if((DEFINED USE_ADHOC_PERF))
-    # Or use `add_executable`.
-    # Or use `target_sources` to add source to the existing targets.
+    target_compile_definitions(your_so_name PUBLIC "-DUSE_ADHOC_PERF=${USE_ADHOC_PERF}")
+    # Or use:
+    # add_definitions("-DUSE_ADHOC_PERF=${USE_ADHOC_PERF}")
+
     add_library(
         your_so_name
         SHARED # or others
         ${ADHOC_TOOLS_SRC_DIR}/adhoc/perf/adhoc-perf.cpp
     )
+    # Or use `add_executable`.
+    # Or use `target_sources` to add source to the existing targets.
 endif()
 ```
 
