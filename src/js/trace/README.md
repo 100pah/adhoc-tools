@@ -30,3 +30,7 @@ For example:
 ```shell
 node parse_trace.js demo.log
 ```
+
+## The Result is like 
+
+![trace_result](https://user-images.githubusercontent.com/1956569/177962206-b2365c76-029b-4920-9bb1-4d2846277d3f.png)
