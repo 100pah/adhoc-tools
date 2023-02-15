@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+    <body>
+
+        <style>
+            html, body {
+                padding: 0;
+                margin: 0
+            }
+            .chart {
+                height: 700px
+            }
+        </style>
+
+
+        <div class="chart" id="main0"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.1/dist/echarts.min.js"></script>
+        <!-- <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.1/dist/echarts.js"></script> -->
+        <script src="../dimensional-legend-extension.js"></script>
+
+        <script>
+
+            var dom = document.getElementById('main0');
+            var chart = window.__chart__ = dimensionalLegendExtension.init(echarts, dom);
+
+            chart.setOption({
+                animation: false,
+                // Required to use dataset.source to provide raw data.
+                dataset: {
+                    dimensions: ['week', 'a_value', 'fruit', 'x_value', 'y_value', 'm_value'],
+                    source: [
+                        ['Monday', 1, 'Apple', 1, 320, 820],
+                        ['Monday', 1, 'Pear', 2, 320, 820],
+                        ['Tuesday', 2, 'Apple', 1, 332, 932],
+                        ['Tuesday', 2, 'Pear', 2, 332, 932],
+                        ['Wednesday', 3, 'Pear', 2, 301, 901],
+                        ['Wednesday', 3, 'Banana', 3, 301, 901],
+                        ['Wednesday', 3, 'Apple', 1, 301, 901],
+                        ['Thursday', 4, null, 7, 334, 934],
+                        ['Thursday', 4, null, 7, 334, 934],
+                        ['Thursday', 4, null, 7, 334, 934],
+                        ['Thursday', 4, null, 7, 334, 934],
+                        ['Friday', 5, 'Banana', 3, 309, 1290],
+                        ['Friday', 5, 'Pear', 2, 309, 1290],
+                        ['Saturday', 6, 'Pear', 2, 330, 1330],
+                        ['Saturday', 6, 'Apple', 1, 330, 1330],
+                        ['Saturday', 6, 'Banana', 3, 330, 1330],
+                        ['Sunday', 7, 'Banana', 3, 320, 1320],
+                        ['Sunday', 7, 'Apple', 1, 320, 1320],
+                    ]
+                },
+                legend: [{
+                    // Use the extended attribute
+                    __ext_dimensionIndex: 0, // Week dimension
+                    __ext_datasetIndex: 0, // Optinal, 0 by default
+                    __ext_seriesIndex: 0, // Optinal, 0 by default
+                    selector: true,
+                    top: 10,
+                }, {
+                    __ext_dimensionIndex: 2, // Fruit dimension
+                    __ext_datasetIndex: 0,
+                    __ext_seriesIndex: 0,
+                    selector: true,
+                    top: 50,
+                }],
+                tooltip: {},
+                grid: {
+                    top: 100
+                },
+                xAxis: {
+                    type: 'value',
+                    scale: true,
+                },
+                yAxis: {
+                    type: 'value',
+                    scale: true,
+                },
+                series: {
+                    type: 'scatter',
+                    datasetIndex: 0,
+                    label: {
+                        show: true,
+                        position: 'top'
+                    },
+                    encode: {
+                        x: 3,
+                        y: 4,
+                        label: [0, 2],
+                        tooltip: [0, 1, 2, 3, 4, 5]
+                    },
+                    emphasis: {
+                        focus: 'self',
+                        blurScope: 'global'
+                    }
+                }
+            });
+
+        </script>
+    </body>
+</html>
