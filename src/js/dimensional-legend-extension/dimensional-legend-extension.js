@@ -80,7 +80,7 @@
         }
     }
 
-    function queryDataIndex(encodedValue) {
+    function queryDataIndex(encodedValue, chart) {
         var decoded = decodeValue(encodedValue);
         var valueStr = decoded[ENCODING_VALUE_INDEX];
         var dimensionIndex = +decoded[ENCODING_DIMENSION_INDEX];
@@ -261,22 +261,13 @@
         return newOption;
     }
 
-    function getLegendSelected(chart, legendValue) {
-        var decoded = decodeValue(legendValue);
-        var legendIndex = decoded[ENCODING_LEGEND_INDEX];
-        var option = chart.getOption();
-        var legendOptionArr = toArray(option.legend);
-        var singleLegendOption = legendOptionArr[legendIndex];
-        return singleLegendOption.selected[legendValue];
-    }
-
     function hackHighDownPayload(originalPayload, chart) {
         if (!isEncodedValue(originalPayload.name)) {
             // Payload is not from a dimesional legend.
             return originalPayload;
         }
 
-        var target = queryDataIndex(originalPayload.name);
+        var target = queryDataIndex(originalPayload.name, chart);
 
         return {
             type: originalPayload.type,
@@ -293,7 +284,6 @@
         //  + In any single legend, the data item satisfies some of the legend items ("or" relationship)
 
         var sourceData = chart.__dle_sourceData;
-        var dataIndexArr = [];
 
         var option = chart.getOption();
         var legendOptionArr = toArray(option.legend);
@@ -363,21 +353,6 @@
                 dataIndex: collected.dataIndexArrShow
             });
         }, 0);
-    }
-
-    function hackLegendToggleSelectPayload(originalPayload, chart) {
-        triggerSelectionUpdate(chart);
-        return originalPayload;
-    }
-
-    function hackLegendAllSelectPayload(originalPayload, chart) {
-        triggerSelectionUpdate(chart);
-        return originalPayload;
-    }
-
-    function hackLegendInverseSelectPayload(originalPayload, chart) {
-        triggerSelectionUpdate(chart);
-        return originalPayload;
     }
 
     function hackChart(chart) {
