@@ -159,6 +159,26 @@
         };
     }
 
+    function addColor(singleLegendOption, legendData) {
+        var colors = singleLegendOption.__ext_colors;
+        if (colors == null) {
+            return legendData;
+        }
+        if (!isArray(colors)) {
+            throw new Error('color needs to be an array');
+        }
+        var newLegendData = legendData.slice();
+        for (var i = 0; i < legendData.length; i++) {
+            newLegendData[i] = {
+                name: legendData[i],
+                itemStyle: {
+                    color: colors[i % colors.length]
+                }
+            };
+        }
+        return newLegendData;
+    }
+
     function hackOption(option, chart) {
         if (!option) {
             return option;
@@ -202,7 +222,10 @@
             var newSingleLegendOption = newOption.legend[legendIndex] = Object.assign({}, originalSingleLegendOption);
 
             var collected = collectLegendData(sourceData, dimensionIndex, seriesIndex, legendIndex);
-            newSingleLegendOption.data = collected.data;
+            var legendData = collected.data;
+            legendData = addColor(originalSingleLegendOption, legendData);
+
+            newSingleLegendOption.data = legendData;
             // If we do not set `selected`, the `chart.getOption().legend[i].selected` will not contain
             // all legend data values, which makes the latter calculations incorrect.
             newSingleLegendOption.selected = collected.selected;
