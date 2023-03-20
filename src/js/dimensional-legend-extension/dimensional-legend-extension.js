@@ -8,9 +8,7 @@
     var LEGEND_VALUE_MARK = 'l|^_^|ext' + Math.random().toFixed(3);
     var DUMMY_SERIES_ID = 's|^_^|ext' + Math.random().toFixed(3);
     var ENCODING_VALUE_INDEX = 0;
-    var ENCODING_DIMENSION_INDEX = 1;
-    var ENCODING_SERIES_INDEX = 2;
-    var ENCODING_LEGEND_INDEX = 3;
+    var ENCODING_LEGEND_INDEX = 1;
 
     var arraySlice = Array.prototype.slice;
     var objToString = Object.prototype.toString;
@@ -48,11 +46,9 @@
     }
 
     // Hint that the data is from legend and envelop the dimension info to it.
-    function encodeValue(value, dimensionIndex, seriesIndex, legendIndex) {
+    function encodeValue(value, legendIndex) {
         var arr = [];
         arr[ENCODING_VALUE_INDEX] = value;
-        arr[ENCODING_DIMENSION_INDEX] = dimensionIndex;
-        arr[ENCODING_SERIES_INDEX] = seriesIndex;
         arr[ENCODING_LEGEND_INDEX] = legendIndex;
         return arr.join(LEGEND_VALUE_MARK);
     }
@@ -83,67 +79,158 @@
     function queryDataIndex(encodedValue, chart) {
         var decoded = decodeValue(encodedValue);
         var valueStr = decoded[ENCODING_VALUE_INDEX];
-        var dimensionIndex = +decoded[ENCODING_DIMENSION_INDEX];
-        var seriesIndex = +decoded[ENCODING_SERIES_INDEX];
 
-        var sourceData = chart.__dle_sourceData;
-        var dataIndexArr = [];
+        var allLegendSeriesConfigs = chart.__dle_allLegendSeriesConfigs;
+        var payloadMapBySeriesIndex = [];
 
-        travelSourceData(sourceData, dimensionIndex, function (val, dataIndex) {
-            if (val + '' === valueStr) {
-                dataIndexArr.push(dataIndex);
-            }
-        });
-
-        return {dataIndexArr: dataIndexArr, seriesIndex: seriesIndex};
-    }
-
-    function eachDimensionalLegendOption(legendOption, cb) {
-        var legendOptionArr = toArray(legendOption);
-        for (var legendIndex = 0; legendIndex < legendOptionArr.length; legendIndex++) {
-            var singleLegendOption = legendOptionArr[legendIndex];
-            if (!isObject(singleLegendOption)) {
+        for (var legendIndex = 0; legendIndex < allLegendSeriesConfigs.length; legendIndex++) {
+            var singleLegendSeriesConfigs = allLegendSeriesConfigs[legendIndex];
+            if (singleLegendSeriesConfigs == null) {
                 continue;
             }
-            var dimensionIndex = getDimensionIndex(singleLegendOption);
-            if (dimensionIndex != null) {
-                cb(singleLegendOption, legendIndex, dimensionIndex);
+            for (var seriesIndex = 0; seriesIndex < singleLegendSeriesConfigs.length; seriesIndex++) {
+                var singleSeriesConfig = singleLegendSeriesConfigs[seriesIndex];
+                if (singleSeriesConfig == null) {
+                    continue;
+                }
+                var singlePayload = payloadMapBySeriesIndex[seriesIndex];
+                if (singlePayload == null) {
+                    singlePayload = payloadMapBySeriesIndex[seriesIndex] = {
+                        seriesIndex: seriesIndex,
+                        dataIndex: []
+                    };
+                }
+                travelSourceData(
+                    singleSeriesConfig.sourceData,
+                    singleSeriesConfig.dimensionIndex,
+                    function (val, dataIndex) {
+                        if (val + '' === valueStr) {
+                            singlePayload.dataIndex.push(dataIndex);
+                        }
+                    }
+                );
+            }
+        }
+
+        var payloadBatch = [];
+        for (var seriesIndex = 0; seriesIndex < payloadMapBySeriesIndex.length; seriesIndex++) {
+            if (payloadMapBySeriesIndex[seriesIndex] != null) {
+                payloadBatch.push(payloadMapBySeriesIndex[seriesIndex]);
+            }
+        }
+
+        return payloadBatch;
+    }
+
+    function findIndexByIdFromEChartsOption(componentOption, id) {
+        var optionArr = toArray(componentOption);
+        for (var componentIndex = 0; componentIndex < optionArr.length; componentIndex++) {
+            if (optionArr[componentIndex].id === id) {
+                return componentIndex;
+            }
+        }
+        return null;
+    }
+
+    function prepareAllLegendSeriesConfigs(
+        legendOption,
+        datasetOption,
+        seriesOption,
+        chart,
+        dleUID,
+        echarts
+    ) {
+        var legendOptionArr = toArray(legendOption);
+        var datasetOptionArr = toArray(datasetOption);
+        var seriesOptionArr = toArray(seriesOption);
+
+        checkValid(chart.__dle_allLegendSeriesConfigs == null);
+
+        // Key: legendIndex
+        var allLegendSeriesConfigs = [];
+        chart.__dle_allLegendSeriesConfigs = allLegendSeriesConfigs;
+        echarts.__dle_allLegendSeriesConfigsForAllCharts[dleUID] = allLegendSeriesConfigs;
+
+        for (var legendIndex = 0; legendIndex < legendOptionArr.length; legendIndex++) {
+            var singleLegendOption = legendOptionArr[legendIndex];
+
+            // Do not use default value. No `__ext_series` means not use this feature.
+            // [{seriesId: ..., dimensionIndex: ..., datasetId: ...}, ...]
+            var rawSeriesConfigs = singleLegendOption.__ext_series || [];
+            var legendSeriesConfigs = [];
+            allLegendSeriesConfigs[legendIndex] = legendSeriesConfigs;
+
+            for (var seriesIndex = 0; seriesIndex < rawSeriesConfigs.length; seriesIndex++) {
+                var singleLegendSeriesConfig = rawSeriesConfigs[seriesIndex];
+
+                checkValid(singleLegendSeriesConfig.seriesId != null, 'seriesId must be specified');
+                checkValid(singleLegendSeriesConfig.datasetId != null, 'datasetId must be specified');
+                checkValid(singleLegendSeriesConfig.dimensionIndex != null, 'dimensionIndex must be specified');
+
+                var seriesIndex = findIndexByIdFromEChartsOption(seriesOptionArr, singleLegendSeriesConfig.seriesId);
+                var datasetIndex = findIndexByIdFromEChartsOption(datasetOptionArr, singleLegendSeriesConfig.datasetId);
+
+                checkValid(seriesIndex != null);
+                var datasetOption = datasetOptionArr[datasetIndex];
+                checkValid(isObject(datasetOption), 'dataset must be used');
+                var dimensions = datasetOption.dimensions;
+                checkValid(isArray(dimensions), '`dataset.dimensions` must be specified');
+                var sourceData = datasetOption.source;
+                checkValid(isArray(sourceData), '`dataset.source` must be specified');
+
+
+                legendSeriesConfigs[seriesIndex] = {
+                    seriesIndex: seriesIndex,
+                    dimensionIndex: singleLegendSeriesConfig.dimensionIndex,
+                    datasetIndex: datasetIndex,
+                    datasetOption: datasetOption,
+                    dimensions: dimensions,
+                    sourceData: sourceData
+                };
             }
         }
     }
 
-    function getDimensionIndex(legendOption) {
-        // Do not use default value. No `__ext_dimensionIndex` means not
-        // dimensional legend.
-        return legendOption.__ext_dimensionIndex;
+    function eachDimensionalLegendOption(legendOption, allLegendSeriesConfigs, cb) {
+        var legendOptionArr = toArray(legendOption);
+        for (var legendIndex = 0; legendIndex < allLegendSeriesConfigs.length; legendIndex++) {
+            var singleLegendSeriesConfigs = allLegendSeriesConfigs[legendIndex];
+            if (singleLegendSeriesConfigs == null) {
+                continue;
+            }
+            var singleLegendOption = legendOptionArr[legendIndex];
+            if (!isObject(singleLegendOption)) {
+                continue;
+            }
+            cb(singleLegendOption, legendIndex, singleLegendSeriesConfigs)
+        }
     }
 
-    function getDatasetIndex(legendOption) {
-        return legendOption.__ext_datasetIndex || 0;
-    }
-
-    function getSeriesIndex(legendOption) {
-        return legendOption.__ext_seriesIndex || 0;
-    }
-
-    function collectLegendData(sourceData, dimensionIndex, seriesIndex, legendIndex) {
-        // For removing duplicated.
+    function collectLegendData(singleLegendSeriesConfigs, legendIndex) {
+        var encodedData = [];
+        // Also used for removing duplication.
         var selected = {};
-        var data = [];
 
-        travelSourceData(sourceData, dimensionIndex, function (val) {
-            if (val == null) {
-                return;
+        for (var i = 0; i < singleLegendSeriesConfigs.length; i++) {
+            var legendSeriesConfig = singleLegendSeriesConfigs[i];
+            if (legendSeriesConfig == null) {
+                continue;
             }
-            var encoded = encodeValue(val, dimensionIndex, seriesIndex, legendIndex);
-            if (!selected.hasOwnProperty(encoded)) {
-                data.push(encoded);
-            }
-            // By default, all legend items are selected.
-            selected[encoded] = true;
-        })
 
-        return {data: data, selected: selected};
+            travelSourceData(legendSeriesConfig.sourceData, legendSeriesConfig.dimensionIndex, function (val) {
+                if (val == null) {
+                    return;
+                }
+                var encoded = encodeValue(val, legendIndex);
+                if (!selected.hasOwnProperty(encoded)) {
+                    encodedData.push(encoded);
+                }
+                // By default, all legend items are selected.
+                selected[encoded] = true;
+            });
+        }
+
+        return {data: encodedData, selected: selected};
     }
 
     function hackLegendFormatter(originalLegendFormatter) {
@@ -179,7 +266,7 @@
         return newLegendData;
     }
 
-    function hackOption(option, chart) {
+    function hackOption(option, chart, echarts) {
         if (!option) {
             return option;
         }
@@ -196,32 +283,34 @@
         var hasExtLengend = false;
         var dummySeriesData = [];
         var newOption = Object.assign({}, option);
+
+        newOption.__dle_uid = Math.random();
+
         newOption.legend = originalLegendOptionArr.slice();
 
         var originalSeriesOptionArr = toArray(option.series);
         var newSeriesOptionArr = newOption.series = originalSeriesOptionArr.slice();
 
-        eachDimensionalLegendOption(originalLegendOptionArr, handleDimensionalLegendOption);
-        function handleDimensionalLegendOption(originalSingleLegendOption, legendIndex, dimensionIndex) {
+        prepareAllLegendSeriesConfigs(
+            newOption.legend,
+            newOption.dataset,
+            newOption.series,
+            chart,
+            newOption.__dle_uid,
+            echarts
+        );
+
+        eachDimensionalLegendOption(
+            newOption.legend,
+            chart.__dle_allLegendSeriesConfigs,
+            handleDimensionalLegendOption
+        );
+        function handleDimensionalLegendOption(originalSingleLegendOption, legendIndex, singleLegendSeriesConfigs) {
             hasExtLengend = true;
-
-            var datasetIndex = getDatasetIndex(originalSingleLegendOption);
-            var datasetOption = originalDatasetOptionArr[datasetIndex];
-            // TODO: At present only support to hit on one series when hover
-            // or click on legend.
-            // Because `payload.batch` not fully supported in focus-blur in echarts,
-            // where only the seriesIndex declared in the last batch item will be hit.
-            var seriesIndex = getSeriesIndex(originalSingleLegendOption);
-
-            checkValid(isObject(datasetOption), 'dataset must be used');
-            var dimensions = datasetOption.dimensions;
-            checkValid(isArray(dimensions), '`dataset.dimensions` must be specified');
-            var sourceData = datasetOption.source;
-            checkValid(isArray(sourceData), '`dataset.source` must be specified');
 
             var newSingleLegendOption = newOption.legend[legendIndex] = Object.assign({}, originalSingleLegendOption);
 
-            var collected = collectLegendData(sourceData, dimensionIndex, seriesIndex, legendIndex);
+            var collected = collectLegendData(singleLegendSeriesConfigs, legendIndex);
             var legendData = collected.data;
             legendData = addColor(originalSingleLegendOption, legendData);
 
@@ -235,25 +324,6 @@
             }
 
             newSingleLegendOption.formatter = hackLegendFormatter(originalSingleLegendOption.formatter);
-
-            chart.__dle_sourceData = sourceData;
-
-            var singleSeriesOption = newSeriesOptionArr[seriesIndex];
-            if (isObject(singleSeriesOption)) {
-                var newSingleSeriesOption = newSeriesOptionArr[seriesIndex] = Object.assign({}, singleSeriesOption);
-                // FIXME: warn users if overwrite their setting?
-                newSingleSeriesOption.selectedMode = 'multiple';
-                var originalSelectOption = Object.assign({}, singleSeriesOption.select || {});
-                newSingleSeriesOption.select = Object.assign(originalSelectOption, {
-                    itemStyle: {
-                        borderWidth: 0,
-                        opacity: 0.2,
-                    },
-                    label: {
-                        show: false
-                    }
-                });
-            }
         }
 
         if (hasExtLengend) {
@@ -290,95 +360,15 @@
             return originalPayload;
         }
 
-        var target = queryDataIndex(originalPayload.name, chart);
+        var batch = queryDataIndex(originalPayload.name, chart);
 
         return {
             type: originalPayload.type,
-            dataIndex: target.dataIndexArr,
-            seriesIndex: target.seriesIndex
+            batch: batch
         };
     }
 
-    function collectLegendSelectorPayloadData(chart) {
-        // If two legend items control the same data item, and one legend item is selected and
-        //  the other one is unselected, we follow the strategy:
-        //  A data item will display if and only if:
-        //  + The data item satisfies all of the legends selection ("and" relationship)
-        //  + In any single legend, the data item satisfies some of the legend items ("or" relationship)
-
-        var sourceData = chart.__dle_sourceData;
-
-        var option = chart.getOption();
-        var legendOptionArr = toArray(option.legend);
-
-        var seriesIndexArr = [];
-        var valueStrSelectedList = [];
-        eachDimensionalLegendOption(legendOptionArr, function (singleLegendOption, legendIndex, dimensionIndex) {
-            var seriesIndex = getSeriesIndex(singleLegendOption);
-            seriesIndexArr.push(seriesIndex);
-            var selected = singleLegendOption.selected;
-            var valueStrSelected = {};
-            for (var legendDataItem in selected) {
-                if (!selected.hasOwnProperty(legendDataItem)) {
-                    continue;
-                }
-                var decoded = decodeValue(legendDataItem);
-                var valueStr = decoded[ENCODING_VALUE_INDEX];
-                valueStrSelected[valueStr] = selected[legendDataItem];
-            }
-            valueStrSelectedList.push({
-                valueStrSelected: valueStrSelected,
-                dimensionIndex: dimensionIndex
-            });
-        });
-
-        var dataIndexArrShow = [];
-        var dataIndexArrHide = [];
-        travelSourceData(sourceData, null, function (valArr, dataIdx) {
-            var satisfyAllLegend = true;
-            for (var i = 0; i < valueStrSelectedList.length; i++) {
-                var dimensionIndex = valueStrSelectedList[i].dimensionIndex;
-                var valueStrSelected = valueStrSelectedList[i].valueStrSelected;
-                if (!valueStrSelected[valArr[dimensionIndex]]) {
-                    satisfyAllLegend = false;
-                }
-            }
-            if (satisfyAllLegend) {
-                dataIndexArrShow.push(dataIdx);
-            }
-            else {
-                dataIndexArrHide.push(dataIdx);
-            }
-        });
-
-        return {
-            seriesIndexArr: seriesIndexArr,
-            dataIndexArrShow: dataIndexArrShow,
-            dataIndexArrHide: dataIndexArrHide,
-        };
-    }
-
-    function triggerSelectionUpdate(chart) {
-        setTimeout(function () {
-            var collected = collectLegendSelectorPayloadData(chart);
-
-            // Use 'unselect' represents data item show, while 'select' represents data item hide.
-            chart.__dle_dispatchAction({
-                type: 'select',
-                // batch: batchResult.hide
-                seriesIndex: collected.seriesIndexArr,
-                dataIndex: collected.dataIndexArrHide
-            });
-            chart.__dle_dispatchAction({
-                type: 'unselect',
-                // batch: batchResult.show
-                seriesIndex: collected.seriesIndexArr,
-                dataIndex: collected.dataIndexArrShow
-            });
-        }, 0);
-    }
-
-    function hackChart(chart) {
+    function hackChart(chart, echarts) {
 
         function hackDispatchAction(host) {
             var originalDispatchAction = host.__dle_dispatchAction = host.dispatchAction;
@@ -387,13 +377,6 @@
                 var payloadType = payload ? payload.type : null;
                 if (payloadType === 'highlight' || payloadType === 'downplay') {
                     newArgs[0] = hackHighDownPayload(payload, chart);
-                }
-                else if (
-                    payloadType === 'legendToggleSelect'
-                    || payloadType === 'legendAllSelect'
-                    || payloadType === 'legendInverseSelect'
-                ) {
-                    triggerSelectionUpdate(chart);
                 }
                 originalDispatchAction.apply(chart, newArgs);
             };
@@ -409,17 +392,54 @@
         var originalSetOption = chart.setOption;
         chart.setOption = function (option) {
             var newArgs = arraySlice.call(arguments);
-            newArgs[0] = hackOption(option, chart);
+            newArgs[0] = hackOption(option, chart, echarts);
             originalSetOption.apply(chart, newArgs);
         };
 
         return chart;
     }
 
+    function dimensionalLegendFilter(echarts, ecModel) {
+        var allLegendSeriesConfigs = echarts.__dle_allLegendSeriesConfigsForAllCharts[ecModel.option.__dle_uid];
+        for (var legendIndex = 0; legendIndex < allLegendSeriesConfigs.length; legendIndex++) {
+            var singleLegendSeriesConfigs = allLegendSeriesConfigs[legendIndex];
+            if (singleLegendSeriesConfigs == null) {
+                continue;
+            }
+
+            var legendModel = ecModel.getComponent('legend', legendIndex);
+
+            for (var seriesIndex = 0; seriesIndex < singleLegendSeriesConfigs.length; seriesIndex++) {
+                var singleSeriesConfig = singleLegendSeriesConfigs[seriesIndex];
+                if (singleSeriesConfig == null) {
+                    continue;
+                }
+                var seriesModel = ecModel.getSeriesByIndex(seriesIndex);
+                var seriesData = seriesModel.getData();
+                seriesData.filterSelf(function (dataIndex) {
+                    var dimensionName = seriesData.getDimension(singleSeriesConfig.dimensionIndex);
+                    var val = seriesData.get(dimensionName, dataIndex);
+                    var encoded = encodeValue(val, legendIndex);
+                    return legendModel.isSelected(encoded);
+                });
+            }
+        }
+    }
+
     function init(echarts) {
+
+        if (!echarts.__dle_initialized) {
+            echarts.registerProcessor(
+                echarts.PRIORITY.PROCESSOR.FILTER,
+                dimensionalLegendFilter.bind(null, echarts)
+            );
+            echarts.__dle_allLegendSeriesConfigsForAllCharts = {};
+            echarts.__dle_initialized = true;
+        }
+
         var otherInitArgs = arraySlice.call(arguments, 1)
         var chart = echarts.init.apply(echarts, otherInitArgs);
-        return hackChart(chart);
+        return hackChart(chart, echarts);
     }
 
     return {

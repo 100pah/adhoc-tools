@@ -36,6 +36,7 @@
             chart.setOption({
                 // Required to use dataset.source to provide raw data.
                 dataset: {
+                    id: 'main_dataset',
                     dimensions: ['week', 'a_value', 'fruit', 'x_value', 'y_value', 'm_value'],
                     source: [
                         ['Monday', 1, 'Apple', 1, 320, 820],
@@ -60,15 +61,19 @@
                 },
                 legend: [{
                     // Use the extended attribute
-                    __ext_dimensionIndex: 0, // Week dimension
-                    __ext_datasetIndex: 0, // Optinal, 0 by default
-                    __ext_seriesIndex: 0, // Optinal, 0 by default
+                    __ext_series: [{
+                        datasetId: 'main_dataset',
+                        seriesId: 'main_series',
+                        dimensionIndex: 0 // Week dimension
+                    }],
                     selector: true,
                     top: 10,
                 }, {
-                    __ext_dimensionIndex: 2, // Fruit dimension
-                    __ext_datasetIndex: 0,
-                    __ext_seriesIndex: 0,
+                    __ext_series: [{
+                        datasetId: 'main_dataset',
+                        seriesId: 'main_series',
+                        dimensionIndex: 2 // Fruit dimension
+                    }],
                     selector: true,
                     top: 50,
                 }],
@@ -86,7 +91,8 @@
                 },
                 series: {
                     type: 'scatter',
-                    datasetIndex: 0,
+                    id: 'main_series',
+                    datasetId: 'main_dataset',
                     label: {
                         show: true,
                         position: 'top'
@@ -141,16 +147,20 @@
                 },
                 legend: [{
                     // Use the extended attribute
-                    __ext_dimensionIndex: 0, // Week dimension
-                    __ext_datasetIndex: 0, // Optinal, 0 by default
-                    __ext_seriesIndex: 0, // Optinal, 0 by default
+                    __ext_series: [{
+                        datasetId: 'main_dataset',
+                        seriesId: 'main_series',
+                        dimensionIndex: 0 // Week dimension
+                    }],
                     __ext_colors: ['red', 'green', 'blue'],
                     selector: true,
                     top: 10,
                 }, {
-                    __ext_dimensionIndex: 2, // Fruit dimension
-                    __ext_datasetIndex: 0,
-                    __ext_seriesIndex: 0,
+                    __ext_series: [{
+                        datasetId: 'main_dataset',
+                        seriesId: 'main_series',
+                        dimensionIndex: 2 // Fruit dimension
+                    }],
                     selector: true,
                     top: 50,
                 }],
