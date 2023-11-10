@@ -32,3 +32,6 @@ README.local.md
 *.exe
 *.out
 *.app
+
+out
+tmp
