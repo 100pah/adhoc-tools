@@ -106,5 +106,7 @@ __all__ = [
         'print_usage_exit',
         'print_error',
         'print_error_exit',
+        'cmd_display_and_exec',
+        'cmd_display_and_exec_return',
         'import_from_file',
         ]
