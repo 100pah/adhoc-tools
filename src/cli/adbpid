@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+
+import sys
+import getopt
+import subprocess
+import re
+
+import common.cli_util as cli_util
+
+
+_USAGE=r"""
+Print the pid of the specified process on android device.
+adb connection is needed.
+
+[Usage]:
+
+    adbpid com.android.smspush
+
+"""
+
+
+cli_util.set_usage(_USAGE)
+
+
+class Context(object):
+    def __init__(self):
+        self.process_name = ""
+
+
+def find_pid(process_name) -> list[str]:
+    assert process_name
+
+    #  See https://stackoverflow.com/questions/15608876/find-out-the-running-process-id-by-package-name
+    #
+    #  These approaches do not work:
+    #   (1) `pidof "com.baidu.searchbox"`
+    #   But in some old Android devices (like HUAWEI P8max) `pidof` lists all pids but not the querying pids.
+    #   (2) `ps | sed -n 's/^[^ ]* *\([0-9]*\).* com\.baidu\.searchbox\.lite$/\1/p'`
+    #   But sed was was not included by default until Android 6.0.
+    #   (3) `pgrep -x "com.baidu.searchbox.lite"`
+    #   Not correct in some devices (return pid 1)
+    #   (4) `pgrep  "com.baidu.searchbox.lite"`
+    #   Not exact match (so com.baidu.searchbox.lite:xxx will be matched)
+    #
+    #  Some notes of the final approach below:
+    #   `$(<$p/cmdline)` may fail with "Permission denied", "No such file or directory" or other errors.
+    #   In this case, error message is printed and `$?` is 1
+    #   We use `echo "" > /dev/null;` to make the final `$?` be 0, and use `2>/dev/null` to omit stderr message.
+    cmd = "adb shell 'for p in /proc/[0-9]*; do [[ $(<$p/cmdline) = \"%s\" ]] && echo ${p##*/}; echo "" >/dev/null; done' 2>/dev/null" % process_name
+    # pid_list_str = cli_util.cmd_display_and_exec_return(cmd)
+
+    pid_list_str = subprocess.check_output(cmd, shell=True).decode()
+    pid_list_raw = re.split(r'\s+', pid_list_str)
+    pid_list = []
+    for val in pid_list_raw:
+        if not val:
+            continue
+        if not val.isdigit():
+            # Fall fast:
+            cli_util.print_error_exit('Invalid pid result: %s' % pid_list_str)
+        pid_list.append(val)
+
+    return pid_list
+
+
+def parse_args(ctx, args):
+    try:
+        (opts, filenames) = getopt.getopt(args, 'h', ['help'])
+
+        if not filenames or len(filenames) > 1:
+            cli_util.print_error_exit('Invalid arguments: {}'.format(filenames))
+
+        ctx.process_name = filenames[0]
+
+        for (opt, _) in opts:
+            if opt in ('-h', '--help'):
+                cli_util.print_usage_exit()
+
+    except getopt.GetoptError as e:
+        cli_util.print_error_exit('Invalid arguments: {}'.format(e))
+
+
+def main():
+    ctx = Context()
+    parse_args(ctx, sys.argv[1:])
+
+    pid_list = find_pid(ctx.process_name)
+
+    # Output to shell as `pidof` did.
+    if len(pid_list) > 0:
+        print(' '.join(pid_list))
+
+
+__all__ = ['main', 'find_pid']
+
+if __name__ == '__main__':
+    main()
