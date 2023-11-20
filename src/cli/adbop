@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import getopt
+import webbrowser
+import threading
+import json
+import datetime
+import http.server
+import urllib.parse
+
+import common.cli_util as cli_util
+adbpid = cli_util.import_from_file('adbpid', './adbpid', __file__)
+
+
+WATCH_INTERVAL = 2.0 # seconds
+BROWSER_START_DELAY = 1.0 # seconds
+
+_USAGE=r"""
+
+Read or monitor app or device operation info:
+    - memory (process/device, virutal/physical)
+    - ... TODO.
+
+[Usage]:
+
+    adbop --help
+
+    # Watch all cmd types (includes all of the CMD_TYPE below),
+    # open a browser tab and keep printing result on it.
+    adbop --process-name adhoc.android.playground
+
+    # If specify multiple processes, use it like this:
+    adbop \
+        --process-name adhoc.android.playground \
+        --process-name com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0
+
+    # Read `adb shell dumpsys meminfo 123 -d` once. (123 is pid)
+    adbop dumpsys meminfo --process-name adhoc.android.playground
+    # Read `adb shell cat /proc/meminfo` once.
+    adbop proc meminfo --process-name adhoc.android.playground
+    # Read `adb shell cat "/proc/123/status"` once. (123 is pid)
+    adbop proc status --process-name adhoc.android.playground
+
+    # Note:
+    #   `--package-name` can be used the same as `--process-name`
+
+"""
+cli_util.set_usage(_USAGE)
+
+
+class CMD_TYPE:
+    DUMPSYS_MEMINFO = 'DUMPSYS_MEMINFO'
+    PROC_MEMINFO = 'PROC_MEMINFO'
+    PROC_STATUS = 'PROC_STATUS'
+
+
+class Context(object):
+    def __init__(self):
+        # list[CMD_TYPE]
+        self.hostname = None
+        self.port = None
+        self.cmd_type_list = []
+        self.process_name_input_list = []
+        self.watch_to_ui = False
+
+
+def get_ui_url(hostname, port):
+    return 'http://%s:%s' % (hostname, port)
+
+
+def prepare_browser(ctx):
+    def open_browser():
+        webbrowser.open_new_tab(get_ui_url(ctx.hostname, ctx.port))
+    timer = threading.Timer(BROWSER_START_DELAY, open_browser)
+    timer.start()
+
+
+def prepare_server(ctx):
+
+    class UIServerHandler(http.server.BaseHTTPRequestHandler):
+
+        def do_GET(self):
+            url = 'http://%s:%s%s' % (self.client_address[0], self.client_address[1], self.path)
+            url_parsed = None
+            try:
+                url_parsed = urllib.parse.urlparse(url)
+            except ValueError as err:
+                cli_util.print_error_exit('Invalid url: %s' % url)
+            if url_parsed is None:
+                cli_util.print_error_exit('Invalid url: %s' % url)
+                return
+
+            if url_parsed.path == '/':
+                self._read_text_and_response('text/html', 'ui.html')
+            elif url_parsed.path == '/ui.js':
+                self._read_text_and_response('text/javascript', 'ui.js')
+            else:
+                self._handle_data_request(url_parsed)
+
+        def _read_text_and_response(self, mine, file_name):
+            self.send_response(200)
+            self.send_header('Content-type', mine)
+            self.end_headers()
+            file_path = os.path.normpath(os.path.join(os.path.dirname(__file__), 'adbop_assets', file_name))
+            file_content = 'Can not find %s' % file_path
+            with open(file_path) as ui_html_file:
+                file_content = ui_html_file.read()
+            self.wfile.write(bytes(file_content, 'utf-8'))
+
+        def _handle_data_request(self, url_parsed):
+            res_data = dict()
+            res_data['result'] = deal_op(ctx)
+            res_data['update_time'] = datetime.datetime.now().strftime(r'%Y-%m-%d %H:%M:%S')
+            json_string = json.dumps(res_data)
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(bytes(json_string, 'utf-8'))
+
+
+    webServer = http.server.HTTPServer((ctx.hostname, ctx.port), UIServerHandler)
+    url = get_ui_url(ctx.hostname, ctx.port)
+    print('Please monitor in browser: %s%s%s' % (cli_util.BColors.OKCYAN, url, cli_util.BColors.ENDC))
+
+    try:
+        webServer.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+    webServer.server_close()
+    print('Server stopped.')
+
+
+def prepare_ui(ctx):
+    ctx.hostname = '127.0.0.1'
+    ctx.port = cli_util.find_free_port()
+    prepare_browser(ctx)
+    prepare_server(ctx)
+
+
+def get_pid_wrap_list(ctx):
+    """
+    pid may be changed if some process is crashed and restarted.
+    So we call get_pid_list() every time.
+    Return: list[(pid, process_name)]
+    """
+    pid_wrap_list = []
+
+    for process_name in ctx.process_name_input_list:
+        # One process name may get multiple pids.
+        pids = adbpid.find_pid(process_name)
+        cli_util.print_info_highlight('package name: "%s", pid: "%s"' % (process_name, ' '.join(pids)))
+        if not pids or len(pids) == 0:
+            cli_util.print_error_exit("Failed to get pid of '%s'" % process_name)
+        pid_wraps = [(pid, process_name) for pid in pids]
+        pid_wrap_list = pid_wrap_list + pid_wraps
+
+    return pid_wrap_list
+
+
+def deal_dumpsys_meminfo(ctx, all_result, pid_wrap_list):
+    def get_cmd(pid):
+        return "adb shell dumpsys meminfo '%s' -d" % pid
+
+    if ctx.watch_to_ui:
+        for (pid, process_name) in pid_wrap_list:
+            result = dict()
+            cmd = get_cmd(pid)
+            result['key'] = cmd
+            result['raw_text'] = cli_util.cmd_display_and_exec_return(cmd)
+            result['cmd_type'] = CMD_TYPE.DUMPSYS_MEMINFO
+            result['process_name'] = process_name
+            all_result.append(result)
+    else:
+        for pid in pid_wrap_list:
+            cli_util.cmd_display_and_exec(get_cmd(pid))
+
+
+def deal_proc_meminfo(ctx, all_result):
+    cmd = "adb shell cat /proc/meminfo"
+
+    if ctx.watch_to_ui:
+        raw_text = cli_util.cmd_display_and_exec_return(cmd)
+        result = dict()
+        result['key'] = cmd
+        result['raw_text'] = raw_text
+        result['cmd_type'] = CMD_TYPE.PROC_MEMINFO
+        all_result.append(result)
+    else:
+        cli_util.cmd_display_and_exec(cmd)
+
+
+def deal_proc_status(ctx, all_result, pid_wrap_list):
+    def get_cmd(pid):
+        return "adb shell cat '/proc/%s/status'" % pid
+
+    if ctx.watch_to_ui:
+        for (pid, process_name) in pid_wrap_list:
+            result = dict()
+            cmd = get_cmd(pid)
+            result['key'] = cmd
+            result['raw_text'] = cli_util.cmd_display_and_exec_return(cmd)
+            result['cmd_type'] = CMD_TYPE.PROC_STATUS
+            result['process_name'] = process_name
+            all_result.append(result)
+    else:
+        for pid in pid_wrap_list:
+            cli_util.cmd_display_and_exec(get_cmd(pid))
+
+
+def deal_op(ctx):
+    pid_wrap_list = get_pid_wrap_list(ctx)
+    all_result = []
+
+    if CMD_TYPE.DUMPSYS_MEMINFO in ctx.cmd_type_list:
+        deal_dumpsys_meminfo(ctx, all_result, pid_wrap_list)
+    if CMD_TYPE.PROC_MEMINFO in ctx.cmd_type_list:
+        deal_proc_meminfo(ctx, all_result)
+    if CMD_TYPE.PROC_STATUS in ctx.cmd_type_list:
+        deal_proc_status(ctx, all_result, pid_wrap_list)
+
+    return all_result
+
+
+def parse_args(ctx, args):
+    opts = []
+
+    try:
+        (opts, extra) = getopt.gnu_getopt(args, 'h', [
+                'help',
+                'app=',
+                'package-name=',
+                'process-name=',
+                'watch-to-file='])
+
+        if len(extra) == 2 and ('dumpsys' in extra) and ('meminfo' in extra):
+            ctx.cmd_type_list.append(CMD_TYPE.DUMPSYS_MEMINFO)
+        elif len(extra) == 2 and ('proc' in extra) and ('meminfo' in extra):
+            ctx.cmd_type_list.append(CMD_TYPE.PROC_MEMINFO)
+        elif len(extra) == 2 and ('proc' in extra) and ('status' in extra):
+            ctx.cmd_type_list.append(CMD_TYPE.PROC_STATUS)
+        elif len(extra) == 0:
+            # means: all cmd types.
+            ctx.cmd_type_list.append(CMD_TYPE.DUMPSYS_MEMINFO)
+            ctx.cmd_type_list.append(CMD_TYPE.PROC_MEMINFO)
+            ctx.cmd_type_list.append(CMD_TYPE.PROC_STATUS)
+            ctx.watch_to_ui = True
+        else:
+            cli_util.print_error_exit('Invalid cmd type: {}'.format(extra))
+
+    except getopt.GetoptError as e:
+        cli_util.print_error_exit('Invalid arguments: {}'.format(e))
+
+    for (opt, val) in opts:
+        if opt in ('-h', '--help'):
+            cli_util.print_usage_exit()
+        elif opt == '--package-name':
+            ctx.process_name_input_list.append(val)
+        elif opt == '--process-name':
+            ctx.process_name_input_list.append(val)
+
+    if len(ctx.process_name_input_list) == 0:
+        cli_util.print_error_exit('Process name is required.')
+    for process_name in ctx.process_name_input_list:
+        if not process_name:
+            cli_util.print_error_exit('There is empty process name.')
+
+def main():
+    ctx = Context()
+    parse_args(ctx, sys.argv[1:])
+
+    if ctx.watch_to_ui:
+        prepare_ui(ctx)
+    else:
+        deal_op(ctx)
+
+
+__all__ = ['main']
+
+if __name__ == '__main__':
+    main()

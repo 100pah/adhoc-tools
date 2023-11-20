@@ -3,6 +3,8 @@
 import os
 import sys
 import subprocess
+import socket
+import contextlib
 import importlib.util
 import importlib.machinery
 
@@ -34,7 +36,7 @@ def print_info_highlight(message):
 def print_usage_exit():
     global _USAGE
     assert _USAGE
-    sys.stdout.write('%s%s%s' % (BColors.OKGREEN, _USAGE, BColors.ENDC))
+    sys.stdout.write('%s%s%s' % (BColors.OKCYAN, _USAGE, BColors.ENDC))
     sys.exit(0)
 
 
@@ -50,21 +52,31 @@ def print_error_exit(ex_or_msg, no_usage=False):
     global _USAGE
     if not no_usage:
         assert _USAGE
-        sys.stdout.write(_USAGE)
+        sys.stdout.write('%s%s%s' % (BColors.OKCYAN, _USAGE, BColors.ENDC))
     print_error(ex_or_msg)
     sys.exit(1)
 
 
-# Print and exec shell command.
 def cmd_display_and_exec(cmd):
+    """ Print and exec shell command. """
     print('%s%s%s' % (BColors.OKBLUE, cmd, BColors.ENDC))
     subprocess.check_call(cmd, shell=True)
 
 
-# Print and exec shell command, get return value.
 def cmd_display_and_exec_return(cmd):
+    """ Print and exec shell command, get return value. """
     print('%s%s%s' % (BColors.OKBLUE, cmd, BColors.ENDC))
     return subprocess.check_output(cmd, shell=True).decode()
+
+
+def find_free_port():
+    """
+    @see https://stackoverflow.com/questions/1365265/on-localhost-how-do-i-pick-a-free-port-number
+    """
+    with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 def import_from_file(module_name, file_path, caller=None, add_sys_path=False):
@@ -108,5 +120,6 @@ __all__ = [
         'print_error_exit',
         'cmd_display_and_exec',
         'cmd_display_and_exec_return',
+        'find_free_port',
         'import_from_file',
         ]
