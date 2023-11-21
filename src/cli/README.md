@@ -33,6 +33,8 @@ adbop proc status --process-name adhoc.android.playground
 adbop proc baseinfo --process-name adhoc.android.playground
 # Find probably webview sandboxed process.
 adbop proc webview
+# Read JVM limit
+adbop jvm limit
 
 # Note:
 #   `--package-name` can be used the same as `--process-name`
