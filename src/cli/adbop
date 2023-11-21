@@ -6,9 +6,11 @@ import getopt
 import webbrowser
 import threading
 import json
+import re
 import datetime
 import http.server
 import urllib.parse
+import enum
 
 import common.cli_util as cli_util
 adbpid = cli_util.import_from_file('adbpid', './adbpid', __file__)
@@ -17,34 +19,44 @@ adbpid = cli_util.import_from_file('adbpid', './adbpid', __file__)
 WATCH_INTERVAL = 2.0 # seconds
 BROWSER_START_DELAY = 1.0 # seconds
 
-_USAGE=r"""
+_USAGE = r"""
 
 Read or monitor app or device operation info:
-    - memory (process/device, virutal/physical)
-    - ... TODO.
+- memory (process/device, virutal/physical)
+- 32/64bit
+- webview sandboxed process
+- ... TODO.
 
 [Usage]:
 
-    adbop --help
+adbop --help
 
-    # Watch all cmd types (includes all of the CMD_TYPE below),
-    # open a browser tab and keep printing result on it.
-    adbop --process-name adhoc.android.playground
+# Watch all cmd types (includes all of the CMD_TYPE below),
+# open a browser tab and keep printing result on it.
+adbop --process-name zygoat
+adbop --process-name adhoc.android.playground
 
-    # If specify multiple processes, use it like this:
-    adbop \
-        --process-name adhoc.android.playground \
-        --process-name com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0
+# If specify multiple processes, use it like this:
+adbop \
+    --process-name adhoc.android.playground \
+    --process-name com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0
 
-    # Read `adb shell dumpsys meminfo 123 -d` once. (123 is pid)
-    adbop dumpsys meminfo --process-name adhoc.android.playground
-    # Read `adb shell cat /proc/meminfo` once.
-    adbop proc meminfo --process-name adhoc.android.playground
-    # Read `adb shell cat "/proc/123/status"` once. (123 is pid)
-    adbop proc status --process-name adhoc.android.playground
+# Read `adb shell dumpsys meminfo 123 -d` once. (123 is pid)
+adbop dumpsys meminfo --process-name adhoc.android.playground
+# Read `adb shell cat /proc/meminfo` once.
+adbop proc meminfo
+# Read `adb shell cat "/proc/123/status"` once. (123 is pid)
+adbop proc status --process-name adhoc.android.playground
+# Read process base info, including ancestor pids.
+adbop proc baseinfo --process-name adhoc.android.playground
+# Find probably webview sandboxed process.
+adbop proc webview
+# Read JVM limit
+adbop jvm limit
 
-    # Note:
-    #   `--package-name` can be used the same as `--process-name`
+
+# Note:
+#   `--package-name` can be used the same as `--process-name`
 
 """
 cli_util.set_usage(_USAGE)
@@ -54,6 +66,14 @@ class CMD_TYPE:
     DUMPSYS_MEMINFO = 'DUMPSYS_MEMINFO'
     PROC_MEMINFO = 'PROC_MEMINFO'
     PROC_STATUS = 'PROC_STATUS'
+    PROC_BASEINFO = 'PROC_BASEINFO'
+    PROC_WEBVIEW = 'PROC_WEBVIEW'
+    JVM_LIMIT = 'JVM_LIMIT'
+
+
+class INPUT_VALIDATOR:
+    # cmd_type that requires process name.
+    process_name = set([CMD_TYPE.DUMPSYS_MEMINFO, CMD_TYPE.PROC_STATUS, CMD_TYPE.PROC_BASEINFO])
 
 
 class Context(object):
@@ -111,7 +131,7 @@ def prepare_server(ctx):
 
         def _handle_data_request(self, url_parsed):
             res_data = dict()
-            res_data['result'] = deal_op(ctx)
+            res_data['result'] = deal_query_once(ctx)
             res_data['update_time'] = datetime.datetime.now().strftime(r'%Y-%m-%d %H:%M:%S')
             json_string = json.dumps(res_data)
             self.send_response(200)
@@ -140,27 +160,32 @@ def prepare_ui(ctx):
     prepare_server(ctx)
 
 
-def get_pid_wrap_list(ctx):
+def fetch_pid_wrap_list(ctx):
     """
     pid may be changed if some process is crashed and restarted.
     So we call get_pid_list() every time.
-    Return: list[(pid, process_name)]
+    Returns:
+        list[(pid, process_name)]
     """
     pid_wrap_list = []
 
     for process_name in ctx.process_name_input_list:
         # One process name may get multiple pids.
-        pids = adbpid.find_pid(process_name)
-        cli_util.print_info_highlight('package name: "%s", pid: "%s"' % (process_name, ' '.join(pids)))
+        pids = adbpid.find_pid(process_name, check=False)
+
+        if not ctx.watch_to_ui:
+            cli_util.print_info_highlight('package name: "%s", pid: "%s"' % (process_name, ' '.join(pids)))
+
         if not pids or len(pids) == 0:
-            cli_util.print_error_exit("Failed to get pid of '%s'" % process_name)
-        pid_wraps = [(pid, process_name) for pid in pids]
-        pid_wrap_list = pid_wrap_list + pid_wraps
+            # Only print log but do not exit for convinence.
+            cli_util.print_error('Failed to get pid of "%s"' % process_name)
+        else:
+            pid_wrap_list = pid_wrap_list + [(pid, process_name) for pid in pids]
 
     return pid_wrap_list
 
 
-def deal_dumpsys_meminfo(ctx, all_result, pid_wrap_list):
+def deal_dumpsys_meminfo(ctx, all_results, pid_wrap_list):
     def get_cmd(pid):
         return "adb shell dumpsys meminfo '%s' -d" % pid
 
@@ -169,30 +194,31 @@ def deal_dumpsys_meminfo(ctx, all_result, pid_wrap_list):
             result = dict()
             cmd = get_cmd(pid)
             result['key'] = cmd
-            result['raw_text'] = cli_util.cmd_display_and_exec_return(cmd)
+            result['raw_text'] = cli_util.cmd_display_and_exec_return(cmd, check=False)
             result['cmd_type'] = CMD_TYPE.DUMPSYS_MEMINFO
             result['process_name'] = process_name
-            all_result.append(result)
+            result['pid'] = pid
+            all_results.append(result)
     else:
-        for pid in pid_wrap_list:
+        for (pid, process_name) in pid_wrap_list:
             cli_util.cmd_display_and_exec(get_cmd(pid))
 
 
-def deal_proc_meminfo(ctx, all_result):
+def deal_proc_meminfo(ctx, all_results):
     cmd = "adb shell cat /proc/meminfo"
 
     if ctx.watch_to_ui:
-        raw_text = cli_util.cmd_display_and_exec_return(cmd)
+        raw_text = cli_util.cmd_display_and_exec_return(cmd, check=False)
         result = dict()
         result['key'] = cmd
         result['raw_text'] = raw_text
         result['cmd_type'] = CMD_TYPE.PROC_MEMINFO
-        all_result.append(result)
+        all_results.append(result)
     else:
         cli_util.cmd_display_and_exec(cmd)
 
 
-def deal_proc_status(ctx, all_result, pid_wrap_list):
+def deal_proc_status(ctx, all_results, pid_wrap_list):
     def get_cmd(pid):
         return "adb shell cat '/proc/%s/status'" % pid
 
@@ -201,27 +227,103 @@ def deal_proc_status(ctx, all_result, pid_wrap_list):
             result = dict()
             cmd = get_cmd(pid)
             result['key'] = cmd
-            result['raw_text'] = cli_util.cmd_display_and_exec_return(cmd)
+            result['raw_text'] = cli_util.cmd_display_and_exec_return(cmd, check=False)
             result['cmd_type'] = CMD_TYPE.PROC_STATUS
             result['process_name'] = process_name
-            all_result.append(result)
+            result['pid'] = pid
+            all_results.append(result)
     else:
-        for pid in pid_wrap_list:
+        for (pid, process_name) in pid_wrap_list:
             cli_util.cmd_display_and_exec(get_cmd(pid))
 
 
-def deal_op(ctx):
-    pid_wrap_list = get_pid_wrap_list(ctx)
-    all_result = []
+def deal_proc_baseinfo(ctx, all_results, pid_wrap_list):
+    def exec(pid, process_name):
+        ancestors = adbpid.find_ancestors(pid, max_loop=5, check=False)
 
-    if CMD_TYPE.DUMPSYS_MEMINFO in ctx.cmd_type_list:
-        deal_dumpsys_meminfo(ctx, all_result, pid_wrap_list)
+        header_text = 'Process base info: \n\n[pid]: %s\n[process_name] %s\n\n' % (pid, process_name)
+
+        # 32/64bit detection:
+        arch_text = ''
+        if any(process_name == 'zygote' for (pid, process_name) in ancestors):
+            arch_text += '[arch]: probably in 32bit mode. (Because has ancestor zygote)\n\n'
+        if any(process_name == 'zygote64' for (pid, process_name) in ancestors):
+            arch_text += '[arch]: in 64bit mode. (Because has ancestor zygote64)\n\n'
+
+        result_text = (
+                header_text
+                + arch_text
+                + '[ancestor processes]:\n'
+                + '\n'.join([
+                        '- pid: %s, process_name: %s' % (ppid, process_name)
+                        for (ppid, process_name) in ancestors])) + '\n'
+        return result_text
+
+    if ctx.watch_to_ui:
+        for (pid, process_name) in pid_wrap_list:
+            result = dict()
+            result['key'] = 'base info of pid: %s' % pid
+            result['raw_text'] = exec(pid, process_name)
+            result['cmd_type'] = CMD_TYPE.PROC_BASEINFO
+            result['process_name'] = process_name
+            result['pid'] = pid
+            all_results.append(result)
+    else:
+        for (pid, process_name) in pid_wrap_list:
+            print(exec(pid, process_name))
+
+
+def deal_proc_webview(ctx, all_results):
+    cmd = "adb shell ps -o PID=,NAME= | grep [s]andboxed"
+
+    if ctx.watch_to_ui:
+        raw_text = cli_util.cmd_display_and_exec_return(cmd, check=False)
+        result = dict()
+        result['key'] = cmd
+        result['raw_text'] = 'May be webview sandboxed process:\n\n%s' % raw_text
+        result['cmd_type'] = CMD_TYPE.PROC_WEBVIEW
+        all_results.append(result)
+    else:
+        cli_util.print_info_highlight('May be webview sandboxed process:')
+        cli_util.cmd_display_and_exec(cmd, display=False)
+
+
+def deal_jvm_limit(ctx, all_results):
+    cmd1 = "adb shell getprop | grep heapgrowthlimit"
+    cmd2 = "adb shell getprop | grep dalvik.vm.heapsize"
+
+    if ctx.watch_to_ui:
+        raw_text1 = cli_util.cmd_display_and_exec_return(cmd1, check=False)
+        raw_text2 = cli_util.cmd_display_and_exec_return(cmd2, check=False)
+        result = dict()
+        result['key'] = 'JVM limit'
+        result['raw_text'] = 'JVM settings:\n\n%s\n%s' % (raw_text1, raw_text2)
+        result['cmd_type'] = CMD_TYPE.JVM_LIMIT
+        all_results.append(result)
+    else:
+        cli_util.print_info_highlight('JVM settings:')
+        cli_util.cmd_display_and_exec(cmd1, display=False)
+        cli_util.cmd_display_and_exec(cmd2, display=False)
+
+
+def deal_query_once(ctx):
+    pid_wrap_list = fetch_pid_wrap_list(ctx)
+    all_results = []
+
     if CMD_TYPE.PROC_MEMINFO in ctx.cmd_type_list:
-        deal_proc_meminfo(ctx, all_result)
+        deal_proc_meminfo(ctx, all_results)
+    if CMD_TYPE.DUMPSYS_MEMINFO in ctx.cmd_type_list:
+        deal_dumpsys_meminfo(ctx, all_results, pid_wrap_list)
     if CMD_TYPE.PROC_STATUS in ctx.cmd_type_list:
-        deal_proc_status(ctx, all_result, pid_wrap_list)
+        deal_proc_status(ctx, all_results, pid_wrap_list)
+    if CMD_TYPE.PROC_BASEINFO in ctx.cmd_type_list:
+        deal_proc_baseinfo(ctx, all_results, pid_wrap_list)
+    if CMD_TYPE.PROC_WEBVIEW in ctx.cmd_type_list:
+        deal_proc_webview(ctx, all_results)
+    if CMD_TYPE.JVM_LIMIT in ctx.cmd_type_list:
+        deal_jvm_limit(ctx, all_results)
 
-    return all_result
+    return all_results
 
 
 def parse_args(ctx, args):
@@ -241,11 +343,20 @@ def parse_args(ctx, args):
             ctx.cmd_type_list.append(CMD_TYPE.PROC_MEMINFO)
         elif len(extra) == 2 and ('proc' in extra) and ('status' in extra):
             ctx.cmd_type_list.append(CMD_TYPE.PROC_STATUS)
+        elif len(extra) == 2 and ('proc' in extra) and ('baseinfo' in extra):
+            ctx.cmd_type_list.append(CMD_TYPE.PROC_BASEINFO)
+        elif len(extra) == 2 and ('proc' in extra) and ('webview' in extra):
+            ctx.cmd_type_list.append(CMD_TYPE.PROC_WEBVIEW)
+        elif len(extra) == 2 and ('jvm' in extra) and ('limit' in extra):
+            ctx.cmd_type_list.append(CMD_TYPE.JVM_LIMIT)
         elif len(extra) == 0:
             # means: all cmd types.
             ctx.cmd_type_list.append(CMD_TYPE.DUMPSYS_MEMINFO)
             ctx.cmd_type_list.append(CMD_TYPE.PROC_MEMINFO)
             ctx.cmd_type_list.append(CMD_TYPE.PROC_STATUS)
+            ctx.cmd_type_list.append(CMD_TYPE.PROC_BASEINFO)
+            ctx.cmd_type_list.append(CMD_TYPE.PROC_WEBVIEW)
+            ctx.cmd_type_list.append(CMD_TYPE.JVM_LIMIT)
             ctx.watch_to_ui = True
         else:
             cli_util.print_error_exit('Invalid cmd type: {}'.format(extra))
@@ -261,7 +372,8 @@ def parse_args(ctx, args):
         elif opt == '--process-name':
             ctx.process_name_input_list.append(val)
 
-    if len(ctx.process_name_input_list) == 0:
+    if (len(ctx.process_name_input_list) == 0
+            and INPUT_VALIDATOR.process_name.intersection(set(ctx.process_name_input_list))):
         cli_util.print_error_exit('Process name is required.')
     for process_name in ctx.process_name_input_list:
         if not process_name:
@@ -274,7 +386,7 @@ def main():
     if ctx.watch_to_ui:
         prepare_ui(ctx)
     else:
-        deal_op(ctx)
+        deal_query_once(ctx)
 
 
 __all__ = ['main']

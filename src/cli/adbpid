@@ -2,19 +2,25 @@
 
 import sys
 import getopt
-import subprocess
 import re
 
 import common.cli_util as cli_util
 
 
-_USAGE=r"""
-Print the pid of the specified process on android device.
+_USAGE = r"""
+Process id and related features for android device.
 adb connection is needed.
 
 [Usage]:
 
-    adbpid com.android.smspush
+# Get pid of the specified process name.
+adbpid com.android.smspush
+
+# List ancestor processes of the specified process name "zygote64".
+adbpid --ancestors-of zygote64
+
+# List ancestor processes of the specified pid 123.
+adbpid --ancestors-of-pid 123
 
 """
 
@@ -22,12 +28,29 @@ adb connection is needed.
 cli_util.set_usage(_USAGE)
 
 
+class TASK_TYPE:
+    PRINT_HELP = 'PRINT_HELP'
+    FIND_PID = 'FIND_PID'
+    FIND_ANCESTORS = 'FIND_ANCESTORS'
+
+
 class Context(object):
     def __init__(self):
-        self.process_name = ""
+        self.process_name = None
+        self.ancestors_of_pid = None
+        self.ancestors_of_process_name = None
+        self.task_type = None
 
 
-def find_pid(process_name) -> list[str]:
+def is_pid_like(val):
+    return str(val).isdigit()
+
+
+def find_pid(process_name, check=True) -> list[str]:
+    """
+    Args:
+        check: If True, exit if shell command returns none-zero.
+    """
     assert process_name
 
     #  See https://stackoverflow.com/questions/15608876/find-out-the-running-process-id-by-package-name
@@ -49,7 +72,7 @@ def find_pid(process_name) -> list[str]:
     cmd = "adb shell 'for p in /proc/[0-9]*; do [[ $(<$p/cmdline) = \"%s\" ]] && echo ${p##*/}; echo "" >/dev/null; done' 2>/dev/null" % process_name
     # pid_list_str = cli_util.cmd_display_and_exec_return(cmd)
 
-    pid_list_str = subprocess.check_output(cmd, shell=True).decode()
+    pid_list_str = cli_util.cmd_display_and_exec_return(cmd, check=False)
     pid_list_raw = re.split(r'\s+', pid_list_str)
     pid_list = []
     for val in pid_list_raw:
@@ -63,18 +86,104 @@ def find_pid(process_name) -> list[str]:
     return pid_list
 
 
+def find_pid_repl(process_name):
+    pid_list = find_pid(process_name)
+    # Output to shell as `pidof` did.
+    if len(pid_list) > 0:
+        print(' '.join(pid_list))
+
+
+def find_parent(pid, check=True):
+    """
+    Args:
+        check: If True, exit if shell command returns none-zero.
+    Returns:
+        (ppid, process_name), ppid and process_name are None if not found.
+    """
+    cmd = 'adb shell ps -o PPID=,NAME= -p %s' % str(pid)
+    raw_result = cli_util.cmd_display_and_exec_return(cmd, display=False, check=check).strip()
+    arr_result = re.split(r'\s+', raw_result)
+    ppid = None
+    process_name = None
+    if (len(arr_result) > 0):
+        ppid = arr_result[0]
+        if not is_pid_like(ppid):
+            # In case that some error that is not considered.
+            cli_util.print_error('find_parent failed. output: %s' % raw_result)
+            ppid = None
+    if (len(arr_result) > 1):
+        process_name = arr_result[1]
+    return (ppid, process_name)
+
+
+def find_ancestors(pid, until_process_name=None, max_loop=10, check=True):
+    """
+    Args:
+        check: If True, exit if shell command returns none-zero.
+    Return:
+        [(ppid, process_name), ...], from self to ancestors.
+    """
+    result = []
+
+    while max_loop > 0:
+        (ppid, process_name) = find_parent(pid, check=check)
+        if ppid is None:
+            break
+        result.append((ppid, process_name))
+        if until_process_name is not None and process_name == until_process_name:
+            break
+        if str(ppid) == '0':
+            # 0 is the 'init' process.
+            break
+        pid = ppid
+        max_loop -= 1
+
+    return result
+
+
+def find_ancestors_repl(ctx):
+    pid_list = []
+
+    if ctx.ancestors_of_process_name is not None:
+        pid_list += find_pid(ctx.ancestors_of_process_name)
+
+    if ctx.ancestors_of_pid is not None:
+        pid_list.append(ctx.ancestors_of_pid)
+
+    for pid in pid_list:
+        ancestors = find_ancestors(pid)
+        cli_util.print_info_highlight('Ancestors of pid %s:' % pid)
+        for (pid, process_name) in ancestors:
+            print('  - pid: %s, process_name: %s' % (pid, process_name))
+
+
 def parse_args(ctx, args):
     try:
-        (opts, filenames) = getopt.getopt(args, 'h', ['help'])
+        (opts, extra) = getopt.gnu_getopt(args, 'h', [
+                'help', 'ancestors-of-pid=', 'ancestors-of='])
 
-        if not filenames or len(filenames) > 1:
-            cli_util.print_error_exit('Invalid arguments: {}'.format(filenames))
+        def set_task_type(task_type):
+            if ctx.task_type:
+                cli_util.print_error_exit(
+                        'Invalid arguments. Do not support %s and %s both.' % (ctx.task_type, task_type))
+            ctx.task_type = task_type
 
-        ctx.process_name = filenames[0]
+        if len(extra) > 0:
+            ctx.process_name = extra[0]
+            set_task_type(TASK_TYPE.FIND_PID)
 
-        for (opt, _) in opts:
+        for (opt, val) in opts:
             if opt in ('-h', '--help'):
-                cli_util.print_usage_exit()
+                set_task_type(TASK_TYPE.PRINT_HELP)
+            elif opt == '--ancestors-of-pid':
+                if not is_pid_like(val):
+                    # In case that some error that is not considered.
+                    cli_util.print_error_exit('Should be `--ancestors-of-pid <pid>`, rather than "%s"' % val)
+                ctx.ancestors_of_pid = val
+                set_task_type(TASK_TYPE.FIND_ANCESTORS)
+            elif opt == '--ancestors-of':
+                ctx.ancestors_of_process_name = val
+                set_task_type(TASK_TYPE.FIND_ANCESTORS)
 
     except getopt.GetoptError as e:
         cli_util.print_error_exit('Invalid arguments: {}'.format(e))
@@ -84,14 +193,20 @@ def main():
     ctx = Context()
     parse_args(ctx, sys.argv[1:])
 
-    pid_list = find_pid(ctx.process_name)
+    if ctx.task_type == TASK_TYPE.PRINT_HELP:
+        cli_util.print_usage_exit()
+    elif ctx.task_type == TASK_TYPE.FIND_PID:
+        find_pid_repl(ctx.process_name)
+    elif ctx.task_type == TASK_TYPE.FIND_ANCESTORS:
+        find_ancestors_repl(ctx)
 
-    # Output to shell as `pidof` did.
-    if len(pid_list) > 0:
-        print(' '.join(pid_list))
 
-
-__all__ = ['main', 'find_pid']
+__all__ = [
+        'main',
+        'find_pid',
+        'find_parent',
+        'find_ancestors',
+        ]
 
 if __name__ == '__main__':
     main()

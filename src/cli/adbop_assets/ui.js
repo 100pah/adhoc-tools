@@ -1,8 +1,10 @@
 (function () {
 
-    const POLL_INTERVAL = 2000;
+    const POLL_INTERVAL = 5000;
     const _updateTimeBox = document.getElementById('update_time');
     const _mainBox = document.getElementById('main_box');
+    const _helpBox = document.getElementById('help_box');
+    const _helpBtn = document.getElementById('help_btn');
     const _dumpSysMemInfoBoxMap = new Map();
 
     var replaceReg = /([&<>"'])/g;
@@ -22,20 +24,43 @@
             });
     };
 
-    async function updateDumpSysMemInfo() {
-        const data = await requestData()
+    function initHelp() {
+        _helpBox.style.display = 'none';
+        _helpBtn.addEventListener('click', function () {
+            _helpBox.style.display = _helpBox.style.display === 'none' ? 'block' : 'none';
+        });
+    }
 
-        _updateTimeBox.innerHTML = 'UPDATE_TIME: ' + encodeHTML(data['update_time']);
+    async function updateDumpSysMemInfo() {
+        let data = null;
+        try {
+            data = await requestData()
+        }
+        catch (err) {
+            alert('disconnected');
+            throw err;
+        }
+
+        _updateTimeBox.innerHTML = 'UPDATE_TIME: '
+            + encodeHTML(data['update_time'])
+            + `&nbsp;&nbsp;(Polling Interval: ${POLL_INTERVAL} ms)`;
 
         for (const item of data.result) {
             const box = getDumpSysMemInfoBox(item);
             box.contentBox.value = item['raw_text'];
-            let titleHTML = '[cmd]&nbsp;&nbsp;' + encodeHTML(item['key'])
-                + '<br>'
-                + (item['process_name']
-                    ? '[process_name]&nbsp;&nbsp;' + encodeHTML(item['process_name'])
-                    : '&nbsp;' // Make it align with the other box
-                );
+            let descLine = '';
+            if (item['process_name']) {
+                descLine += '[process_name]&nbsp;' + encodeHTML(item['process_name']);
+            }
+            if (item['pid']) {
+                descLine += '&nbsp;&nbsp;[pid]&nbsp;' + encodeHTML(item['pid']);
+            }
+            if (!descLine) {
+                descLine += '&nbsp;'
+            }
+            const titleHTML = '[cmd]&nbsp;&nbsp;' + encodeHTML(item['key'])
+                + '<br>' // Always two lines to align with the other boxes.
+                + descLine;
             box.titleBox.innerHTML = titleHTML;
         }
     }
@@ -72,6 +97,7 @@
     }
 
     function main() {
+        initHelp();
         async function next() {
             await updateDumpSysMemInfo();
             setTimeout(next, POLL_INTERVAL);

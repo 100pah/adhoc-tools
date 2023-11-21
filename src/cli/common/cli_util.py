@@ -57,16 +57,30 @@ def print_error_exit(ex_or_msg, no_usage=False):
     sys.exit(1)
 
 
-def cmd_display_and_exec(cmd):
-    """ Print and exec shell command. """
-    print('%s%s%s' % (BColors.OKBLUE, cmd, BColors.ENDC))
+def cmd_display_and_exec(cmd, display=True):
+    """
+    Print and exec shell command.
+    Args:
+        display: if True, print command before exec.
+    """
+    if display:
+        print('%s%s%s' % (BColors.OKBLUE, cmd, BColors.ENDC))
     subprocess.check_call(cmd, shell=True)
 
 
-def cmd_display_and_exec_return(cmd):
-    """ Print and exec shell command, get return value. """
-    print('%s%s%s' % (BColors.OKBLUE, cmd, BColors.ENDC))
-    return subprocess.check_output(cmd, shell=True).decode()
+def cmd_display_and_exec_return(cmd, display=True, check=True):
+    """
+    Print and exec shell command, get return value.
+    Args:
+        display: if True, print command before exec.
+        check: if True, raise exception if return code is not 0.
+    Returns:
+        string from stdout of the command.
+    """
+    if display:
+        print('%s%s%s' % (BColors.OKBLUE, cmd, BColors.ENDC))
+    return subprocess.run(cmd, stdout=subprocess.PIPE, shell=True,
+                          timeout=None, check=check).stdout.decode()
 
 
 def find_free_port():

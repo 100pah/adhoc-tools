@@ -23,6 +23,66 @@
                 width: 100%;
                 padding: 10px;
             }
+            #help_btn {
+                position: fixed;
+                right: 20px;
+                top: 20px;
+                font-size: 25px;
+                line-height: 36px;
+                width: 36px;
+                height: 36px;
+                text-align: center;
+                color: #eee;
+                background-color: green;
+                border-radius: 18px;
+                font-family: monospace;
+                cursor: pointer;
+                z-index: 9999;
+            }
+            #help_box {
+                display: none;
+                position: fixed;
+                right: 20px;
+                top: 60px;
+                max-height: 90%;
+                max-width: 350px;
+                padding: 20px;
+                padding-top: 0;
+                margin: 0;
+                font-size: 13px;
+                border: 1px solid #aaa;
+                background-color: #eee;
+                box-shadow: #000 0 0 10px;
+                font-family: Arial, Helvetica, sans-serif;
+                line-height: 1.6;
+                z-index: 9998;
+                overflow: auto;
+            }
+            #help_box .header {
+                font-size: 16px;
+                font-weight: bold;
+                padding-left: 0;
+                margin-top: 15px;
+            }
+            #help_box ul {
+                padding-left: 10px;
+            }
+            #help_box strong {
+                color: green;
+            }
+            #help_box i {
+                color: #888;
+            }
+            #help_box .tag {
+                color: #fff;
+                font-size: 10px;
+                font-weight: bold;
+                margin-left: 5px;
+                margin-right: 5px;
+                background: rgb(220 102 3);
+                padding: 2px 3px;
+                border-radius: 2px;
+            }
             .result_block {
                 display: inline-block;
                 position: relative;
@@ -31,11 +91,12 @@
                 margin: 5px;
             }
             .result_block .title {
-                font-size: 12px;
+                font-size: 10px;
                 padding: 5px;
                 width: 100%;
                 text-overflow: ellipsis;
                 overflow: hidden;
+                font-family: Arial, Helvetica, sans-serif;
             }
             .result_block .content {
                 font-size: 10px;
@@ -58,10 +119,114 @@
                 width: 320px;
             }
             .cmd_type_PROC_STATUS .content {
-                height: 600px;
+                height: 620px;
+            }
+            .cmd_type_PROC_BASEINFO {
+                width: 300px;
+            }
+            .cmd_type_PROC_BASEINFO .content {
+                height: 620px;
+            }
+            .cmd_type_PROC_WEBVIEW {
+                width: 300px;
+            }
+            .cmd_type_PROC_WEBVIEW .content {
+                height: 620px;
+            }
+            .cmd_type_JVM_LIMIT {
+                width: 300px;
+            }
+            .cmd_type_JVM_LIMIT .content {
+                height: 300px;
             }
         </style>
         <div id="update_time"></div>
+        <div id="help_btn">?</div>
+
+        <div id="help_box">
+            <div class="header">Hints:</div>
+            <ul>
+                <li>Physical memory of the entire device:
+                    <ul>
+                        <li>Available to alloc currently:<span class="tag">OOM CHECK</span>
+                            <ul>
+                                <li><strong>MemFree + MemAvailable</strong>
+                                    in <i>adb shell cat /proc/meminfo</i>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>Limit of memory:
+                            <ul>
+                                <li><strong>MemTotal</strong> in <i>adb shell cat /proc/meminfo</i></li>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>Available to swap currently:<span class="tag">OOM CHECK</span>
+                            <ul>
+                                <li><strong>SwapFree</strong> in <i>adb shell cat /proc/meminfo</i></li>
+                            </ul>
+                        </li>
+                        <li>Limit of swap space:
+                            <ul>
+                                <li><strong>SwapTotal</strong> in <i>adb shell cat /proc/meminfo</i></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+                <li>Physical memory of a single process:
+                    <ul>
+                        <li>Physical memory currently in use:<span class="tag">OOM CHECK</span>
+                            <ul>
+                                <li><strong>Pss</strong> in <i>adb shell dumpsys meminfo &lt;pid&gt; -d</i><br></li></li>
+                                <li><strong>VmRSS</strong> in <i>adb shell cat '/proc/&lt;pid&gt;/status'</i></li>
+                            </ul>
+                        <li>Peak physical memory since started:
+                            <ul>
+                                <li><strong>VmHWM</strong> in <i>adb shell cat '/proc/&lt;pid&gt;/status'</i></li>
+                            </ul>
+                        <li>Physical memory used by JVM:<span class="tag">OOM CHECK</span>
+                            <ul>
+                                <li><strong>Dalvik Heap</strong> in <i>adb shell dumpsys meminfo &lt;pid&gt; -d</i>.
+                                    Pay attention to it when approaching the limit of memory that JVM can use.
+                                </li>
+                            </ul>
+                        </li>
+                        <li>Limit of memory that can used by JVM:</li>
+                            <ul>
+                                <li><strong>dalvik.vm.heapsize</strong> and <strong>dalvik.vm.heapgrowthlimit</strong></li>
+                            </ul>
+                    </ul>
+                </li>
+                <li>Virtual memory of a single process:
+                    <ul>
+                        <li>Available to alloc currently:<span class="tag">OOM CHECK</span>
+                        </li>
+                        <ul>
+                            <li>
+                                <strong>VmSize</strong> in <i>adb shell cat '/proc/&lt;pid&gt;/status'</i>.
+                                Pay attention to the processes in 32bit mode that are approaching 4GB.
+                                Some webview sandboxed process run in 32bit mode even in 64bit device.
+                            </li>
+                        </ul>
+                    </ul>
+                </li>
+                <li>WebView sandboxed process:
+                    <ul>
+                        <li>Some devices or some app use sandboxed process for webview
+                            by default. Most of the memory required by web pages is allocated in the sandboxed processes.
+                            See the block <strong>May be webview sandboxed process</strong> to find part of them.
+                        </li>
+                    </ul>
+                </li>
+                <li>
+                    Current thread count: <strong>Threads</strong> in <i>adb shell cat '/proc/&lt;pid&gt;/status'</i>
+                </li>
+                <li>
+                    Process is in 32 or 64bit mode: check the block <i>base info of pid: &lt;pid&gt;</i>
+                </li>
+            </ul>
+        </div>
+
         <div id="main_box">
         </div>
         <script src="ui.js"></script>
