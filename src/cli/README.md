@@ -6,7 +6,8 @@ Read or monitor Android app or device operation info:
 - memory (process/device, virutal/physical)
 - 32/64bit
 - webview sandboxed process
-- ... TODO.
+- thread count
+- ... to add as needed.
 
 [Usage]:
 ```shell
@@ -39,5 +40,23 @@ adbop proc webview
 
 At present the simple UI is like:
 
-<img width="1589" alt="image" src="https://github.com/100pah/adhoc-tools/assets/1956569/97a59c2b-6380-4ad0-aea3-080e881752b5">
+<img width="1775" alt="image" src="https://github.com/100pah/adhoc-tools/assets/1956569/e42db29e-7a88-4775-86c3-42f6dade1083">
+
+
+## adbpid
+
+- Get process id by name (compat for some old devices).
+- Get ancestors process from a process name or pid.
+
+[Usage]:
+```shell
+# Get pid of the specified process name.
+adbpid com.android.smspush
+
+# List ancestor processes of the specified process name "zygote64".
+adbpid --ancestors-of zygote64
+
+# List ancestor processes of the specified pid 123.
+adbpid --ancestors-of-pid 123
+```
 
