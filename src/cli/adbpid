@@ -72,7 +72,7 @@ def find_pid(process_name, check=True) -> list[str]:
     cmd = "adb shell 'for p in /proc/[0-9]*; do [[ $(<$p/cmdline) = \"%s\" ]] && echo ${p##*/}; echo "" >/dev/null; done' 2>/dev/null" % process_name
     # pid_list_str = cli_util.cmd_display_and_exec_return(cmd)
 
-    pid_list_str = cli_util.cmd_display_and_exec_return(cmd, check=False)
+    pid_list_str = cli_util.cmd_display_and_exec_return(cmd, display=False, check=check)
     pid_list_raw = re.split(r'\s+', pid_list_str)
     pid_list = []
     for val in pid_list_raw:
