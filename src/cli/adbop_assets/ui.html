@@ -14,27 +14,35 @@
             *, *:before, *:after {
                 box-sizing: inherit;
             }
-            #update_time {
-                padding: 10px;
+
+            /* --- header --- */
+            #page_header {
+                padding: 10px 15px;
                 font-size: 16px;
                 font-family: Arial, Helvetica, sans-serif;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 40px;
+                z-index: 8000;
+                background-color: #fff;
+                border-bottom: 1px solid #777;
             }
-            #main_box {
-                width: 100%;
-                padding: 10px;
-            }
+
+            /* --- help --- */
             #help_btn {
                 position: fixed;
                 right: 20px;
-                top: 20px;
-                font-size: 25px;
-                line-height: 36px;
-                width: 36px;
-                height: 36px;
+                top: 5px;
+                font-size: 23px;
+                line-height: 30px;
+                width: 30px;
+                height: 30px;
                 text-align: center;
                 color: #eee;
                 background-color: green;
-                border-radius: 18px;
+                border-radius: 15px;
                 font-family: monospace;
                 cursor: pointer;
                 z-index: 9999;
@@ -42,17 +50,19 @@
             #help_box {
                 display: none;
                 position: fixed;
-                right: 20px;
-                top: 60px;
-                max-height: 90%;
-                max-width: 350px;
+                /* right: 20px; */
+                right: 0;
+                /* top: 50px; */
+                top: 40px;
+                bottom: 0px;
+                width: 350px;
                 padding: 20px;
                 padding-top: 0;
                 margin: 0;
                 font-size: 13px;
-                border: 1px solid #aaa;
+                border-left: 1px solid #aaa;
                 background-color: #eee;
-                box-shadow: #000 0 0 10px;
+                /* box-shadow: #000 0 0 5px; */
                 font-family: Arial, Helvetica, sans-serif;
                 line-height: 1.6;
                 z-index: 9998;
@@ -83,6 +93,34 @@
                 padding: 2px 3px;
                 border-radius: 2px;
             }
+
+            /* --- main box --- */
+            #main_box {
+                width: 100%;
+                padding: 10px;
+                margin-top: 38px;
+            }
+            #main_box.helper_show {
+                padding-right: 355px;
+            }
+
+            .pid_line {
+                position: relative;
+                margin-top: 10px;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #ccc;
+            }
+            .pid_tag {
+                position: absolute;
+                right: 0;
+                top: -10px;
+                background-color: #777;
+                color: #fff;
+                font-size: 10px;
+                padding: 2px 5px;
+                font-family: monospace;
+            }
+
             .result_block {
                 display: inline-block;
                 position: relative;
@@ -91,6 +129,7 @@
                 margin: 5px;
             }
             .result_block .title {
+                position: relative;
                 font-size: 10px;
                 padding: 5px;
                 width: 100%;
@@ -103,8 +142,9 @@
                 padding: 5px;
                 width: 100%;
             }
+
             .cmd_type_DUMPSYS_MEMINFO {
-                width: 500px;
+                width: 565px;
             }
             .cmd_type_DUMPSYS_MEMINFO .content {
                 height: 650px;
@@ -131,7 +171,7 @@
                 width: 300px;
             }
             .cmd_type_PROC_WEBVIEW .content {
-                height: 620px;
+                height: 300px;
             }
             .cmd_type_JVM_LIMIT {
                 width: 300px;
@@ -139,8 +179,27 @@
             .cmd_type_JVM_LIMIT .content {
                 height: 300px;
             }
+
+            .result_block.slate {
+                color: #999;
+            }
+            .result_block.slate .content {
+                color: #999;
+            }
+            .result_block.slate .title::after {
+                content: 'probably terminated';
+                color: #fff;
+                background-color: #777;
+                font-size: 13px;
+                padding: 2px 5px;
+                position: absolute;
+                right: 0;
+                top: 0;
+                z-index: 100;
+            }
+
         </style>
-        <div id="update_time"></div>
+        <div id="page_header"></div>
         <div id="help_btn">?</div>
 
         <div id="help_box">
@@ -184,9 +243,10 @@
                             <ul>
                                 <li><strong>VmHWM</strong> in <i>adb shell cat '/proc/&lt;pid&gt;/status'</i></li>
                             </ul>
-                        <li>Physical memory used by JVM:<span class="tag">OOM CHECK</span>
+                        <li>Physical memory allocated by user on Java heap:<span class="tag">OOM CHECK</span>
                             <ul>
-                                <li><strong>Dalvik Heap</strong> in <i>adb shell dumpsys meminfo &lt;pid&gt; -d</i>.
+                                <li>The intersection of column <strong>`Heap Alloc`</strong> and row <strong>Dalvik Heap</strong>
+                                    in <i>adb shell dumpsys meminfo &lt;pid&gt; -d</i>.
                                     Pay attention to it when approaching the limit of memory that JVM can use.
                                 </li>
                             </ul>
