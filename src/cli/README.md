@@ -42,7 +42,8 @@ adbop jvm limit
 
 At present the simple UI is like:
 
-<img width="1775" alt="image" src="https://github.com/100pah/adhoc-tools/assets/1956569/e42db29e-7a88-4775-86c3-42f6dade1083">
+<img width="1782" alt="image" src="https://github.com/100pah/adhoc-tools/assets/1956569/91e9d939-2cc6-4647-b59a-766e9055d085">
+
 
 
 ## adbpid
